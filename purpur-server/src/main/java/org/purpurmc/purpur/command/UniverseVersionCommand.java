@@ -120,6 +120,12 @@ public class UniverseVersionCommand extends Command {
                 .append(Component.text(profile, NamedTextColor.GOLD))
                 .append(Component.text(" (Gobernador MSPT: " + throttle + ")", NamedTextColor.GRAY)));
 
+        sender.sendMessage(Component.text(" • MultiVersión Engine: ", NamedTextColor.GRAY)
+                .append(Component.text("1.21.x -> 1.26.x (Full Range)", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
+                .append(Component.text(org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.isMultiVersionActive()
+                        ? " [ACTIVO - Compatible con todos los clientes]"
+                        : " [ACTIVO - Auto-Deploy en arranque]", NamedTextColor.GREEN)));
+
         sender.sendMessage(Component.text(" • Panel Web & Portal: ", NamedTextColor.GRAY)
                 .append(Component.text(panelRunning ? "ONLINE (Puerto " + webPort + ")" : "OFFLINE", panelRunning ? NamedTextColor.GREEN : NamedTextColor.RED))
                 .append(Component.text(" | Admin: /admin", NamedTextColor.GRAY)));

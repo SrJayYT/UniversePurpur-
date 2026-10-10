@@ -532,6 +532,11 @@ public final class UniverseWebPanel {
                   "blockedPayloads": %d,
                   "blockedSlots": %d,
                   "linkedAccountsCount": %d,
+                  "multiVersion": {
+                    "enabled": %b,
+                    "active": %b,
+                    "range": "%s"
+                  },
                   "ports": {
                     "minecraftJava": %d,
                     "webAdmin": %d,
@@ -564,6 +569,9 @@ public final class UniverseWebPanel {
                 shield.getBlockedOversizedPayloads(),
                 shield.getBlockedInvalidSlots(),
                 UniverseDiscordLinker.instance().getAllLinks().size(),
+                UniversePurpurConfig.multiVersionEnabled,
+                org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.isMultiVersionActive(),
+                org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.getSupportedRange(),
                 Bukkit.getPort() > 0 ? Bukkit.getPort() : 25565,
                 UniversePurpurConfig.webPanelPort,
                 UniversePurpurConfig.geyserPort

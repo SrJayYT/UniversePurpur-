@@ -69,6 +69,7 @@ public class UniverseHelpCommand extends Command {
             addCmd(sender, "/link", "Genera un código temporal para vincular tu cuenta con Discord.");
             addCmd(sender, "/version", "Muestra la versión del núcleo, motor y desarrollador (DevPapo).");
             addCmd(sender, "/plugins", "Lista interactiva de plugins con autores y versiones.");
+            sender.sendMessage(Component.text(" [✦] MultiVersión Nativo: Jugadores desde 1.21.x hasta 1.26.x pueden entrar sin restricciones.", NamedTextColor.DARK_AQUA));
             sender.sendMessage(Component.text(" Usa /help 2 para ver más comandos administrativos.", NamedTextColor.GRAY));
         }
 

@@ -123,6 +123,11 @@ public final class UniversePurpurConfig {
     public static String webServerIpAddress = "play.universenetwork.net";
     public static String webDiscordInviteUrl = "https://discord.gg/universepurpur";
 
+    // --- MultiVersion Support (1.21.x -> 1.26.x Full Protocol Range) ---
+    public static boolean multiVersionEnabled = true;
+    public static boolean multiVersionAutoDeploy = true;
+    public static String multiVersionRange = "1.21.x - 1.26.x (Full Range)";
+
     private UniversePurpurConfig() {}
 
     public static void init(File serverRootDir) {
@@ -148,6 +153,7 @@ public final class UniversePurpurConfig {
         readDefaultsAndValues();
         save();
         try {
+            org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.init(serverRootDir);
             org.purpurmc.purpur.task.UniverseGovernorTask.instance().start();
             org.purpurmc.purpur.task.UniverseMemoryGovernor.instance().start();
             org.purpurmc.purpur.web.UniverseWebPanel.instance().start();
@@ -330,6 +336,11 @@ public final class UniversePurpurConfig {
         webServerFaviconUrl = getString("global.web-panel.branding.favicon-url", webServerFaviconUrl);
         webServerIpAddress = getString("global.web-panel.branding.server-ip", webServerIpAddress);
         webDiscordInviteUrl = getString("global.web-panel.branding.discord-invite-url", webDiscordInviteUrl);
+
+        // MultiVersion Protocol Engine (1.21.x -> 1.26.x)
+        multiVersionEnabled = getBoolean("global.multiversion.enabled", multiVersionEnabled);
+        multiVersionAutoDeploy = getBoolean("global.multiversion.auto-deploy", multiVersionAutoDeploy);
+        multiVersionRange = getString("global.multiversion.range", multiVersionRange);
     }
 
     public static void updateBranding(String title, String desc, String logo, String favicon, String ip, String discord) {
