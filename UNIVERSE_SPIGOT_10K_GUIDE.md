@@ -74,10 +74,29 @@ net.core.wmem_max = 16777216
 
 ---
 
-## 5. Recarga y Comandos en Vivo
+## 5. Panel de Control y Comandos en Vivo (`/universespigot` | `/uspigot` | `/universe`)
 
-Para recargar todas las opciones de rendimiento sin reiniciar el servidor:
-```
-/purpur reload
-```
-El motor recargará automáticamente tanto la configuración base como el perfil ultra-optimizado de `universe-purpur.yml`.
+UniverseSpigot incluye un comando de administración y diagnóstico en tiempo real con MiniMessage y telemetría:
+
+* `/universespigot status`: Abre el Dashboard en vivo mostrando:
+  - TPS real y MSPT con código de colores (Verde <35ms, Amarillo 35-45ms, Rojo >45ms).
+  - Estado del Dynamic Governor (Level 0 a Level 3 Emergency).
+  - Perfil activo actual, jugadores en línea y chunks cargados.
+  - Consumo de memoria RAM (Usada / Asignada / Máxima).
+  - Estado del Netty Packet Rate Limiter y límites de colisiones.
+
+* `/universespigot reload`: Recarga en caliente [`universe-purpur.yml`](file:///C:/Users/Jacob/Desktop/DevPapo/SoftwareMC/UniversePurpur/universe-purpur.yml) sin reiniciar.
+* `/universespigot profile <10k-hub | 10k-minigames | 10k-survival>`: Cambia el perfil de rendimiento global en caliente.
+* `/universespigot lagprotection <on | off | auto>`: Fuerza o automatiza la protección de lag de emergencia.
+* `/universespigot purge <items | ambient>`: Limpia instantáneamente ítems en el suelo o entidades ambientales para aliviar picos de lag en eventos masivos.
+
+También se puede recargar todo mediante `/purpur reload`.
+
+---
+
+## 6. Scripts de Arranque Automatizados
+
+Se incluyen scripts de ejecución con Generational ZGC y optimizaciones de red:
+* **Windows:** [`start.bat`](file:///C:/Users/Jacob/Desktop/DevPapo/SoftwareMC/UniversePurpur/start.bat) (con reinicio automático tras 5 segundos).
+* **Linux:** [`start.sh`](file:///C:/Users/Jacob/Desktop/DevPapo/SoftwareMC/UniversePurpur/start.sh) (ideal para contenedores o servicios systemd).
+
