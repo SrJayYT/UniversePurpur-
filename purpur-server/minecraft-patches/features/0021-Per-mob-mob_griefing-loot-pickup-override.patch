@@ -1,0 +1,342 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Peashooter101 <Peashooter101@yahoo.com>
+Date: Sat, 13 Dec 2025 13:59:23 -0600
+Subject: [PATCH] Per mob mob_griefing loot pickup override
+
+
+diff --git a/net/minecraft/world/entity/Mob.java b/net/minecraft/world/entity/Mob.java
+index 65473722cf31dd7f298ec60cf0d870d8e8fbe142..d0187dea97d0a1247d2d03b089cf138035bf6d24 100644
+--- a/net/minecraft/world/entity/Mob.java
++++ b/net/minecraft/world/entity/Mob.java
+@@ -572,7 +572,7 @@ public abstract class Mob extends LivingEntity implements Targeting, EquipmentUs
+             && this.canPickUpLoot()
+             && this.isAlive()
+             && !this.dead
+-            && serverLevel.getGameRules().get(GameRules.MOB_GRIEFING, serverLevel.purpurConfig.entitiesPickUpLootMobGriefingOverride)) { // Purpur - Add mobGriefing override to everything affected
++            && serverLevel.getGameRules().get(GameRules.MOB_GRIEFING, checkEntityPickUpLootOverride())) { // Purpur - Check mobGriefing Overrides
+             Vec3i pickupReach = this.getPickupReach();
+ 
+             for (ItemEntity entity : this.level()
+@@ -591,6 +591,12 @@ public abstract class Mob extends LivingEntity implements Targeting, EquipmentUs
+         profiler.pop();
+     }
+ 
++    // Purpur start - Check mobGriefing Overrides
++    protected @Nullable Boolean checkEntityPickUpLootOverride() {
++        return null;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     protected EquipmentSlot sunProtectionSlot() {
+         return EquipmentSlot.HEAD;
+     }
+diff --git a/net/minecraft/world/entity/animal/allay/Allay.java b/net/minecraft/world/entity/animal/allay/Allay.java
+index f5bf06a36f4ffd0370a95ef6d18e99d4daedcd65..9e31aaff00f76cfbba9539d7e2bb3283afdaae65 100644
+--- a/net/minecraft/world/entity/animal/allay/Allay.java
++++ b/net/minecraft/world/entity/animal/allay/Allay.java
+@@ -162,6 +162,13 @@ public class Allay extends PathfinderMob implements InventoryCarrier, VibrationS
+     }
+     // Purpur end - Configurable entity base attributes
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.allayCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected Brain<Allay> makeBrain(final Brain.Packed packedBrain) {
+         return BRAIN_PROVIDER.makeBrain(this, packedBrain);
+diff --git a/net/minecraft/world/entity/animal/fox/Fox.java b/net/minecraft/world/entity/animal/fox/Fox.java
+index ea23a64654ebaaf97fe9e5c0eab0f31f54d94d22..f286089eca3b6e9c72f1b954b872c8673a717b7a 100644
+--- a/net/minecraft/world/entity/animal/fox/Fox.java
++++ b/net/minecraft/world/entity/animal/fox/Fox.java
+@@ -814,6 +814,13 @@ public class Fox extends Animal {
+     }
+     // Purpur end - Tulips change fox type
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.foxCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     // Paper start - Cancellable death event
+     protected org.bukkit.event.entity.EntityDeathEvent dropAllDeathLoot(final ServerLevel level, final DamageSource source) {
+diff --git a/net/minecraft/world/entity/monster/illager/Pillager.java b/net/minecraft/world/entity/monster/illager/Pillager.java
+index e69514bf39e2acfc909cb55b1704ca3f56f704e2..20c0b12b56416bc532de4de827c88850bfd1f0f3 100644
+--- a/net/minecraft/world/entity/monster/illager/Pillager.java
++++ b/net/minecraft/world/entity/monster/illager/Pillager.java
+@@ -104,6 +104,13 @@ public class Pillager extends AbstractIllager implements CrossbowAttackMob, Inve
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.pillagerCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void registerGoals() {
+         super.registerGoals();
+diff --git a/net/minecraft/world/entity/monster/illager/Vindicator.java b/net/minecraft/world/entity/monster/illager/Vindicator.java
+index c29a1aea5c09ade40e36f4cb00a677b31ad91069..d4e298ecf79ff7ebdea71b710e6df7ba72f9a0f5 100644
+--- a/net/minecraft/world/entity/monster/illager/Vindicator.java
++++ b/net/minecraft/world/entity/monster/illager/Vindicator.java
+@@ -96,6 +96,13 @@ public class Vindicator extends AbstractIllager {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.vindicatorCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void registerGoals() {
+         super.registerGoals();
+diff --git a/net/minecraft/world/entity/monster/piglin/Piglin.java b/net/minecraft/world/entity/monster/piglin/Piglin.java
+index bbdf01c5ab0b0eee4773d4ca690dc3c4fa3ec202..b14fd101ba647ca99211a42b142d2d80975a9e38 100644
+--- a/net/minecraft/world/entity/monster/piglin/Piglin.java
++++ b/net/minecraft/world/entity/monster/piglin/Piglin.java
+@@ -147,6 +147,13 @@ public class Piglin extends AbstractPiglin implements CrossbowAttackMob, Invento
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.piglinCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void addAdditionalSaveData(final ValueOutput output) {
+         super.addAdditionalSaveData(output);
+@@ -430,7 +437,7 @@ public class Piglin extends AbstractPiglin implements CrossbowAttackMob, Invento
+ 
+     @Override
+     public boolean wantsToPickUp(final ServerLevel level, final ItemStack itemStack) {
+-        return level.getGameRules().get(GameRules.MOB_GRIEFING, level.purpurConfig.piglinMobGriefingOverride) && this.canPickUpLoot() && PiglinAi.wantsToPickup(this, itemStack); // Purpur - Add mobGriefing override to everything affected
++        return level.getGameRules().get(GameRules.MOB_GRIEFING, level.purpurConfig.piglinCanPickUpLoot) && this.canPickUpLoot() && PiglinAi.wantsToPickup(this, itemStack); // Purpur - Check mobGriefing Overrides
+     }
+ 
+     protected boolean canReplaceCurrentItem(final ItemStack newItemStack) {
+diff --git a/net/minecraft/world/entity/monster/piglin/PiglinBrute.java b/net/minecraft/world/entity/monster/piglin/PiglinBrute.java
+index 0755e3ed3b940609f0211d123c0c664905af56b5..3a33976a667d9d9b446b6b27b5938aff8f5d9ab6 100644
+--- a/net/minecraft/world/entity/monster/piglin/PiglinBrute.java
++++ b/net/minecraft/world/entity/monster/piglin/PiglinBrute.java
+@@ -89,6 +89,13 @@ public class PiglinBrute extends AbstractPiglin {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.piglinBruteCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     public static AttributeSupplier.Builder createAttributes() {
+         return Monster.createMonsterAttributes()
+             .add(Attributes.MAX_HEALTH, 50.0)
+diff --git a/net/minecraft/world/entity/monster/skeleton/Bogged.java b/net/minecraft/world/entity/monster/skeleton/Bogged.java
+index 50dd01a2092f87fd9015c982f728f14965be5b81..410c5f8e1571970e8043eb5d976cd6d8b95689eb 100644
+--- a/net/minecraft/world/entity/monster/skeleton/Bogged.java
++++ b/net/minecraft/world/entity/monster/skeleton/Bogged.java
+@@ -66,6 +66,13 @@ public class Bogged extends AbstractSkeleton implements Shearable {
+     }
+     // Purpur end - Configurable entity base attributes
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.boggedCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void defineSynchedData(final SynchedEntityData.Builder entityData) {
+         super.defineSynchedData(entityData);
+diff --git a/net/minecraft/world/entity/monster/skeleton/Skeleton.java b/net/minecraft/world/entity/monster/skeleton/Skeleton.java
+index 7d0c6fe7290e8ad44c451b431778e1b7fe37c6e5..c5b261f36f6042a395b8e1a7d54b20339e81b4b8 100644
+--- a/net/minecraft/world/entity/monster/skeleton/Skeleton.java
++++ b/net/minecraft/world/entity/monster/skeleton/Skeleton.java
+@@ -64,6 +64,13 @@ public class Skeleton extends AbstractSkeleton {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.skeletonCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void defineSynchedData(final SynchedEntityData.Builder entityData) {
+         super.defineSynchedData(entityData);
+diff --git a/net/minecraft/world/entity/monster/skeleton/Stray.java b/net/minecraft/world/entity/monster/skeleton/Stray.java
+index 76f28568aecf019ce7432ff89593b2ed4eaff8a2..e761c97212e380b6978e5fbd1d808f4ddbb89bb5 100644
+--- a/net/minecraft/world/entity/monster/skeleton/Stray.java
++++ b/net/minecraft/world/entity/monster/skeleton/Stray.java
+@@ -61,6 +61,13 @@ public class Stray extends AbstractSkeleton {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.strayCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     public static boolean checkStraySpawnRules(
+         final EntityType<Stray> type, final ServerLevelAccessor level, final EntitySpawnReason spawnReason, final BlockPos pos, final RandomSource random
+     ) {
+diff --git a/net/minecraft/world/entity/monster/skeleton/WitherSkeleton.java b/net/minecraft/world/entity/monster/skeleton/WitherSkeleton.java
+index c3f09863893933580caa07b8b9cdfd08ad5a0978..ddb189a3fb144bf84097aee9c3e45dafc88c593d 100644
+--- a/net/minecraft/world/entity/monster/skeleton/WitherSkeleton.java
++++ b/net/minecraft/world/entity/monster/skeleton/WitherSkeleton.java
+@@ -73,6 +73,13 @@ public class WitherSkeleton extends AbstractSkeleton {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.witherSkeletonCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void registerGoals() {
+         this.targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(this, AbstractPiglin.class, true));
+diff --git a/net/minecraft/world/entity/monster/zombie/Drowned.java b/net/minecraft/world/entity/monster/zombie/Drowned.java
+index d7652cc26a9e3db010a7d05f0931d78b9a53b20c..4801c6987740f846a3049bfa0fcac547183e3f13 100644
+--- a/net/minecraft/world/entity/monster/zombie/Drowned.java
++++ b/net/minecraft/world/entity/monster/zombie/Drowned.java
+@@ -147,6 +147,13 @@ public class Drowned extends Zombie implements RangedAttackMob {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.drownedCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void addBehaviourGoals() {
+         this.goalSelector.addGoal(1, new Drowned.DrownedGoToWaterGoal(this, 1.0));
+diff --git a/net/minecraft/world/entity/monster/zombie/Husk.java b/net/minecraft/world/entity/monster/zombie/Husk.java
+index 5d60b230eeaec9d37e286019b8d4276cfa85a9ea..55b2bd676f2e9633fc8250bcd984424e8c37e2ee 100644
+--- a/net/minecraft/world/entity/monster/zombie/Husk.java
++++ b/net/minecraft/world/entity/monster/zombie/Husk.java
+@@ -98,6 +98,13 @@ public class Husk extends Zombie {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.huskCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     public boolean isSunSensitive() {
+         return this.shouldBurnInDay; // Purpur - moved to LivingEntity; keep methods for ABI compatibility - API for any mob to burn daylight
+diff --git a/net/minecraft/world/entity/monster/zombie/Zombie.java b/net/minecraft/world/entity/monster/zombie/Zombie.java
+index 09fda2f96f2c4024e35ef23c482097b7c055b936..04ba29b8864804899e19b08b1952df781c96a23e 100644
+--- a/net/minecraft/world/entity/monster/zombie/Zombie.java
++++ b/net/minecraft/world/entity/monster/zombie/Zombie.java
+@@ -166,6 +166,13 @@ public class Zombie extends Monster {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.zombieCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void registerGoals() {
+         this.goalSelector.addGoal(0, new org.purpurmc.purpur.entity.ai.HasRider(this)); // Purpur - Ridables
+diff --git a/net/minecraft/world/entity/monster/zombie/ZombieVillager.java b/net/minecraft/world/entity/monster/zombie/ZombieVillager.java
+index 3e96d18ed2fb67c08e77b17ec7f6418fbb5caf8f..e5eb30d3620937af3cd294bdd6b985fbb61df534 100644
+--- a/net/minecraft/world/entity/monster/zombie/ZombieVillager.java
++++ b/net/minecraft/world/entity/monster/zombie/ZombieVillager.java
+@@ -145,6 +145,13 @@ public class ZombieVillager extends Zombie implements VillagerDataHolder {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.zombieVillagerCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void defineSynchedData(final SynchedEntityData.Builder entityData) {
+         super.defineSynchedData(entityData);
+diff --git a/net/minecraft/world/entity/monster/zombie/ZombifiedPiglin.java b/net/minecraft/world/entity/monster/zombie/ZombifiedPiglin.java
+index 9e893c0c033dcc2273275b92048d9b1a941d93f2..54ba4d2e8305e2d9ba0c9e71bae67bfd7b7d34b9 100644
+--- a/net/minecraft/world/entity/monster/zombie/ZombifiedPiglin.java
++++ b/net/minecraft/world/entity/monster/zombie/ZombifiedPiglin.java
+@@ -124,6 +124,13 @@ public class ZombifiedPiglin extends Zombie implements NeutralMob {
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.zombifiedPiglinCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     protected void addBehaviourGoals() {
+         this.goalSelector.addGoal(1, new SpearUseGoal<>(this, 1.0, 1.0, 10.0F, 2.0F));
+diff --git a/net/minecraft/world/entity/npc/villager/Villager.java b/net/minecraft/world/entity/npc/villager/Villager.java
+index c841d627254da95b786469108adb2b7f89355954..0503f9aa01099ebb807c3b6ccfe88f9610cc36b5 100644
+--- a/net/minecraft/world/entity/npc/villager/Villager.java
++++ b/net/minecraft/world/entity/npc/villager/Villager.java
+@@ -298,6 +298,13 @@ public class Villager extends AbstractVillager implements VillagerDataHolder, Re
+     }
+     // Purpur end - Mobs always drop experience
+ 
++    // Purpur start - Check mobGriefing Overrides
++    @Override
++    protected Boolean checkEntityPickUpLootOverride() {
++        return this.level().purpurConfig.villagerCanPickUpLoot;
++    }
++    // Purpur end - Check mobGriefing Overrides
++
+     @Override
+     public Brain<Villager> getBrain() {
+         return (Brain<Villager>) super.getBrain();
+diff --git a/net/minecraft/world/entity/raid/Raider.java b/net/minecraft/world/entity/raid/Raider.java
+index 869af8dffe56a52ea1406a6598df733f724ee654..7eeb25f068d77095dbd35e5f9c079a78f24538fe 100644
+--- a/net/minecraft/world/entity/raid/Raider.java
++++ b/net/minecraft/world/entity/raid/Raider.java
+@@ -397,7 +397,7 @@ public abstract class Raider extends PatrollingMonster {
+         }
+ 
+         private boolean cannotPickUpBanner() {
+-            if (!getServerLevel(this.mob).getGameRules().get(net.minecraft.world.level.gamerules.GameRules.MOB_GRIEFING, this.mob.level().purpurConfig.pillagerMobGriefingOverride)) return true; // Paper - respect game and entity rules for picking up items // Purpur - Add mobGriefing override to everything affected
++            if (!getServerLevel(this.mob).getGameRules().get(net.minecraft.world.level.gamerules.GameRules.MOB_GRIEFING, this.mob.level().purpurConfig.pillagerCanPickUpLoot)) return true; // Paper - respect game and entity rules for picking up items // Purpur - Check mobGriefing Overrides
+             if (!this.mob.hasActiveRaid()) {
+                 return true;
+             }

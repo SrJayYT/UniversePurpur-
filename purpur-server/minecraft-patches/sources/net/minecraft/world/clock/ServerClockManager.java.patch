@@ -1,0 +1,17 @@
+--- a/net/minecraft/world/clock/ServerClockManager.java
++++ b/net/minecraft/world/clock/ServerClockManager.java
+@@ -149,12 +_,12 @@
+ 
+     public ClientboundSetTimePacket createFullSyncPacket() {
+         // Paper start - per-player time
+-        return this.createFullSyncPacket(null);
++        return this.createFullSyncPacket(null); // Purpur - TODO: Configurable daylight cycle
+     }
+ 
+     public ClientboundSetTimePacket createFullSyncPacket(final net.minecraft.server.level.ServerPlayer player) {
+         final Map<Holder<WorldClock>, ClockNetworkState> updates = new HashMap<>(this.clocks.size());
+-        this.clocks.forEach((clock, instance) -> updates.put(clock, this.packNetworkState(clock, instance, player)));
++        this.clocks.forEach((clock, instance) -> updates.put(clock, this.packNetworkState(clock, instance, player))); // Purpur - TODO: Configurable daylight cycle
+         return new ClientboundSetTimePacket(this.getGameTime(), updates);
+         // Paper end - per-player time
+     }

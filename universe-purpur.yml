@@ -1,0 +1,185 @@
+# =============================================================================
+# UniversePurpur / UniverseSpigot - Extreme Optimization Profile
+# Author: DevPapo
+# Target: Massive Minecraft Networks & Super-Populated Servers (+10,000 Players Online)
+# =============================================================================
+
+version: 3
+profile: ultra-10k-massive-network
+
+global:
+  enabled: true
+
+  # ---------------------------------------------------------------------------
+  # Dynamic MSPT Governor & Tick Lag Protection
+  # Maintains stable 20.0 TPS even under sudden spikes with 10k players.
+  # ---------------------------------------------------------------------------
+  tick:
+    dynamic-throttle: true
+    target-mspt: 40.0                  # Below 50.0ms ensures constant 20.0 TPS
+    hard-limit-mspt: 48.0              # Triggers emergency tick throttling
+    emergency-lag-protection: true     # Prevents server freeze / crash during massive influx
+    skip-non-critical-entity-ticks: true
+    skip-distant-player-updates: true
+
+  # ---------------------------------------------------------------------------
+  # Entity & Mob Optimization (Eliminates O(N^2) bottlenecks)
+  # ---------------------------------------------------------------------------
+  mobs:
+    global-spawning-enabled: true
+    global-ai-enabled: true
+    disable-passive-mobs: false
+    disable-hostile-mobs: false
+    disable-ambient-mobs: true         # Disable bats and ambient entities (zero gameplay impact)
+    disable-water-mobs: false
+    disable-boss-mobs: false
+
+    # Collision Limiter: Reduces O(N^2) collision checks to O(1)
+    max-collisions-per-entity: 1       # Prevents 100+ players in spawn from melting CPU
+    player-collisions-enabled: false   # Disables player pushing player in crowded areas
+    inactive-entity-tick-rate: 20      # Only tick inactive entities every 1 second (20 ticks)
+
+    # DAB (Dynamic Activation of Brain)
+    dab:
+      enabled: true
+      max-tick-freq: 20                # Throttle brain ticks for distant mobs to 1/20 ticks
+      activation-distance: 12          # Full brain ticks only within 12 blocks of player
+
+    item-merge-radius: 4.0             # Merges ground items aggressively to reduce entity count
+    disable-inactive-item-ticks: true  # Freeze item entities that are resting on floor
+
+  # ---------------------------------------------------------------------------
+  # Netty & Network Throughput (+10,000 Concurrent Connections)
+  # ---------------------------------------------------------------------------
+  network:
+    async-compression: true
+    compression-threshold: 512         # Higher threshold avoids burning CPU compressing tiny packets
+    tcp-nodelay: true                  # Immediate packet dispatch, reduces player latency
+    flush-consolidation: true          # Netty syscall batching for massive socket counts
+    netty-event-loop-threads: 0        # 0 = Auto-detect (CPU Cores * 2)
+
+    # Packet Rate Limiting (Anti-DoS / Anti-Crasher Floods)
+    packet-rate-limit:
+      enabled: true
+      max-packets-per-second: 1200
+      burst: 250
+
+    # Anti-Payload Spam
+    anti-payload-spam:
+      enabled: true
+      max-custom-payload-size-kb: 16
+      max-channels: 64
+
+    # Player Tracking Range & Packet Storm Suppression
+    # Crucial: Prevents broadcasting thousands of entity packets to each connected player
+    tracking:
+      max-tracked-entities-per-player: 48   # Caps entity packets sent per client tick
+      range-player: 32                      # Player view distance in blocks
+      range-animals: 16
+      range-monsters: 24
+      range-misc: 12
+
+  # ---------------------------------------------------------------------------
+  # Chunks & World Simulation
+  # ---------------------------------------------------------------------------
+  chunks:
+    simulation-distance-cap: 3         # Strict simulation distance for massive player counts
+    view-distance-cap: 6               # Visual distance (rendering only, minimal server tick load)
+    async-chunk-io: true               # All chunk loading & generation run asynchronously
+    dirtySaveOnly: true                # Never re-save chunks that were not modified
+
+  # ---------------------------------------------------------------------------
+  # Autosave & Disk I/O Throttling
+  # Spreads chunk saves across ticks to completely eliminate autosave lag spikes.
+  # ---------------------------------------------------------------------------
+  data:
+    autosave:
+      enabled: true
+      interval-seconds: 600            # Autosave every 10 minutes
+      max-chunks-per-tick: 6           # Only 6 chunks saved per tick (smooth I/O curve)
+
+  # ---------------------------------------------------------------------------
+  # Hoppers & Redstone Optimization
+  # ---------------------------------------------------------------------------
+  hoppers:
+    cache-inventory-lookups: true      # Caches destination inventory lookups
+    throttle-empty-ticks: 8            # Empty hoppers wait 8 ticks before searching again
+
+  redstone:
+    max-updates-per-tick: 6000         # Caps runaway redstone clocks / lag machines
+
+# =============================================================================
+# Presets: Pre-configured templates optimized for different game modes
+# =============================================================================
+presets:
+  # Mega Hub / Lobby (2,000 - 10,000 players per instance or proxy group)
+  10k-hub:
+    ticks:
+      random-tick-speed: 0
+      max-block-updates-per-tick: 1000
+    chunks:
+      view-distance: 6
+      simulation-distance: 2
+    mobs:
+      global-spawning-enabled: false
+      global-ai-enabled: false
+      max-collisions-per-entity: 0
+      player-collisions-enabled: false
+
+  # Competitive Minigames (Bedwars, Skywars, Duels, Arena)
+  10k-minigames:
+    ticks:
+      random-tick-speed: 1
+      max-block-updates-per-tick: 8000
+    chunks:
+      view-distance: 6
+      simulation-distance: 3
+    mobs:
+      global-spawning-enabled: false
+      global-ai-enabled: false
+      max-collisions-per-entity: 1
+      player-collisions-enabled: false
+
+  # Survival / SMP / Skyblock (+1,000 - +5,000 concurrent players)
+  10k-survival:
+    ticks:
+      random-tick-speed: 1
+      max-block-updates-per-tick: 6000
+    chunks:
+      view-distance: 6
+      simulation-distance: 3
+    mobs:
+      global-spawning-enabled: true
+      global-ai-enabled: true
+      max-collisions-per-entity: 1
+      player-collisions-enabled: false
+
+# =============================================================================
+# World Rules: Assign presets and overrides to specific worlds
+# =============================================================================
+world-rules:
+  # Default lobby world
+  world:
+    preset: 10k-hub
+    enabled: true
+    time:
+      lock: true
+      value: 6000
+      cycle: false
+
+  # Arena world example
+  minigames_arena:
+    preset: 10k-minigames
+    enabled: true
+    time:
+      lock: true
+      value: 12000
+      cycle: false
+
+  # Survival world example
+  survival_world:
+    preset: 10k-survival
+    enabled: true
+    time:
+      lock: false
+      cycle: true

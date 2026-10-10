@@ -1,0 +1,61 @@
+import java.util.Locale
+
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven("https://repo.papermc.io/repository/maven-public/")
+    }
+}
+
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
+if (!file(".git").exists()) {
+    logger.warn(
+        """
+        =====================[ WARNING ]=====================
+         No Git repository detected.
+         Continuing build because repository check is disabled
+         in this UniversePurpur fork.
+        =====================================================
+        """.trimIndent()
+    )
+}
+
+rootProject.name = "purpur"
+for (name in listOf("purpur-api", "purpur-server")) {
+    val projName = name.lowercase(Locale.ENGLISH)
+    include(projName)
+    findProject(":$projName")!!.projectDir = file(name)
+}
+
+optionalInclude("test-plugin")
+
+fun optionalInclude(name: String, op: (ProjectDescriptor.() -> Unit)? = null) {
+    val settingsFile = file("$name.settings.gradle.kts")
+    if (settingsFile.exists()) {
+        apply(from = settingsFile)
+        findProject(":$name")?.let { op?.invoke(it) }
+    } else {
+        settingsFile.writeText(
+            """
+            // Uncomment to enable the '$name' project
+            // include(":$name")
+
+            """.trimIndent()
+        )
+    }
+}
+
+gradle.lifecycle.beforeProject {
+    val mcVersion = providers.gradleProperty("mcVersion").get().trim()
+    val purpurChannel = providers.gradleProperty("channel").get().trim()
+    val purpurBuildNumber = providers.environmentVariable("BUILD_NUMBER").orNull?.trim()?.toInt()
+    val versionString = if (purpurBuildNumber == null) {
+        "$mcVersion.local-SNAPSHOT"
+    } else {
+        "$mcVersion.build.$purpurBuildNumber-${purpurChannel.lowercase()}"
+    }
+    version = versionString
+}
