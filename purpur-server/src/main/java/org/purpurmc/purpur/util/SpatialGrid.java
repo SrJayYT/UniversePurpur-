@@ -61,19 +61,23 @@ public final class SpatialGrid {
 
     /**
      * Backward-compatible update for general entity collections.
+     * Partitions entities by world and safely refreshes buckets without memory leaks or entity duplication.
      */
     public void updateWorldEntities(Iterable<? extends Entity> entities) {
         if (entities == null) return;
+        Map<World, List<Entity>> byWorld = new java.util.HashMap<>();
         for (Entity entity : entities) {
             if (!entity.isValid()) continue;
             Location loc = entity.getLocation();
             World w = loc.getWorld();
             if (w == null) continue;
-            Map<Long, List<Entity>> buckets = getOrCreateWorldMap(w.getUID());
-            long key = bucketKey(loc.getBlockX(), loc.getBlockZ());
-            buckets.computeIfAbsent(key, k -> Collections.synchronizedList(new ArrayList<>(8))).add(entity);
+            byWorld.computeIfAbsent(w, k -> new ArrayList<>()).add(entity);
+        }
+        for (Map.Entry<World, List<Entity>> entry : byWorld.entrySet()) {
+            updateWorldEntities(entry.getKey(), entry.getValue());
         }
     }
+
 
     /**
      * Finds nearby players in neighboring buckets in O(1) time without iterating the entire server.

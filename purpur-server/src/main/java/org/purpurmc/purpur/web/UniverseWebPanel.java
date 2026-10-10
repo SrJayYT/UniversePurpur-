@@ -131,6 +131,11 @@ public final class UniverseWebPanel {
         return running;
     }
 
+    public int getCachedLoadedChunks() {
+        return cachedLoadedChunks;
+    }
+
+
     private static UniverseUserManager.Session getSession(HttpExchange exchange) {
         String token = null;
         String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
@@ -202,20 +207,31 @@ public final class UniverseWebPanel {
                 return;
             }
 
-            // 1. Static Asset Serving (/assets/*)
+            // 1. Static Asset Serving (/assets/*) with path-traversal hardening
             if (path.startsWith("/assets/")) {
-                File file = new File(path.substring(1));
-                if (file.exists() && file.isFile()) {
-                    byte[] bytes = Files.readAllBytes(file.toPath());
-                    String mime = path.endsWith(".png") ? "image/png" : path.endsWith(".jpg") ? "image/jpeg" : "application/octet-stream";
-                    exchange.getResponseHeaders().set("Content-Type", mime);
-                    exchange.sendResponseHeaders(200, bytes.length);
-                    try (OutputStream os = exchange.getResponseBody()) {
-                        os.write(bytes);
+                String sub = path.substring("/assets/".length()).replace('\\', '/');
+                if (!sub.contains("..") && !sub.startsWith("/")) {
+                    File baseDir = UniversePurpurConfig.SERVER_ROOT_DIR != null ? UniversePurpurConfig.SERVER_ROOT_DIR : new File(".");
+                    File assetsDir = new File(baseDir, "assets").getCanonicalFile();
+                    File file = new File(assetsDir, sub).getCanonicalFile();
+                    if (file.getPath().startsWith(assetsDir.getPath()) && file.exists() && file.isFile()) {
+                        byte[] bytes = Files.readAllBytes(file.toPath());
+                        String mime = sub.endsWith(".png") ? "image/png"
+                                : (sub.endsWith(".jpg") || sub.endsWith(".jpeg")) ? "image/jpeg"
+                                : sub.endsWith(".ico") ? "image/x-icon"
+                                : "application/octet-stream";
+                        exchange.getResponseHeaders().set("Content-Type", mime);
+                        exchange.sendResponseHeaders(200, bytes.length);
+                        try (OutputStream os = exchange.getResponseBody()) {
+                            os.write(bytes);
+                        }
+                        return;
                     }
-                    return;
                 }
+                sendJsonResponse(exchange, 404, "{\"error\":\"Asset Not Found\"}");
+                return;
             }
+
 
             // 2. Public Web Portal (Root)
             if (path.equals("/") || path.equals("/index.html") || path.equals("/link")) {
@@ -304,12 +320,11 @@ public final class UniverseWebPanel {
             String p = extractJsonString(body, "password");
 
             // Check master token direct login
-            if (p != null && p.equals(UniversePurpurConfig.webPanelAuthToken)) {
-                UniverseUserManager.Session masterSession = new UniverseUserManager.Session(
-                        UUID.randomUUID().toString().replace("-", ""), "MasterAdmin", UniverseUserManager.Role.SUPER_ADMIN, System.currentTimeMillis() + 86400000L);
+            String masterToken = UniversePurpurConfig.webPanelAuthToken;
+            if (p != null && masterToken != null && !masterToken.trim().isEmpty() && p.equals(masterToken.trim())) {
                 sendJsonResponse(exchange, 200, String.format(
                         "{\"success\":true,\"token\":\"%s\",\"username\":\"MasterAdmin\",\"role\":\"SUPER_ADMIN\"}",
-                        UniversePurpurConfig.webPanelAuthToken));
+                        masterToken.trim()));
                 return;
             }
 
@@ -384,7 +399,7 @@ public final class UniverseWebPanel {
             return;
         }
 
-        // Users Management (List, Create, Delete)
+        // Users Management (List, Create, Delete, Password)
         if (path.equals("/api/users") && "GET".equalsIgnoreCase(method)) {
             if (session.role != UniverseUserManager.Role.SUPER_ADMIN) {
                 sendJsonResponse(exchange, 403, "{\"error\":\"Permiso denegado\"}");
@@ -396,7 +411,7 @@ public final class UniverseWebPanel {
             for (UniverseUserManager.User u : UniverseUserManager.instance().getUsers().values()) {
                 if (!first) sb.append(",");
                 first = false;
-                sb.append(String.format("{\"username\":\"%s\",\"role\":\"%s\",\"createdAt\":%d}", u.username, u.role.name(), u.createdAt));
+                sb.append(String.format("{\"username\":\"%s\",\"role\":\"%s\",\"createdAt\":%d}", escapeJson(u.username), u.role.name(), u.createdAt));
             }
             sb.append("]}");
             sendJsonResponse(exchange, 200, sb.toString());
@@ -434,6 +449,24 @@ public final class UniverseWebPanel {
             sendJsonResponse(exchange, 200, ok ? "{\"success\":true}" : "{\"success\":false,\"message\":\"No se puede eliminar este usuario\"}");
             return;
         }
+
+        if (path.equals("/api/users/password") && "POST".equalsIgnoreCase(method)) {
+            String body = readRequestBody(exchange);
+            String u = extractJsonString(body, "username");
+            String np = extractJsonString(body, "newPassword");
+            if (u == null || np == null || np.length() < 4) {
+                sendJsonResponse(exchange, 400, "{\"success\":false,\"message\":\"Contraseña inválida (mínimo 4 caracteres)\"}");
+                return;
+            }
+            if (session.role != UniverseUserManager.Role.SUPER_ADMIN && !session.username.equalsIgnoreCase(u)) {
+                sendJsonResponse(exchange, 403, "{\"error\":\"Permiso denegado\"}");
+                return;
+            }
+            boolean ok = UniverseUserManager.instance().updatePassword(u, np);
+            sendJsonResponse(exchange, 200, ok ? "{\"success\":true,\"message\":\"Contraseña actualizada correctamente\"}" : "{\"success\":false,\"message\":\"Usuario no encontrado\"}");
+            return;
+        }
+
 
         sendJsonResponse(exchange, 404, "{\"error\":\"Endpoint no encontrado\"}");
     }
@@ -707,15 +740,15 @@ public final class UniverseWebPanel {
     }
 
     private static String extractJsonString(String json, String key) {
-        if (json == null) return null;
-        String pattern = "\"" + key + "\":\"";
-        int idx = json.indexOf(pattern);
-        if (idx == -1) {
-            pattern = "\"" + key + "\": \"";
-            idx = json.indexOf(pattern);
-        }
-        if (idx == -1) return null;
-        int start = idx + pattern.length();
+        if (json == null || key == null) return null;
+        String searchKey = "\"" + key + "\"";
+        int keyIdx = json.indexOf(searchKey);
+        if (keyIdx == -1) return null;
+        int colonIdx = json.indexOf(':', keyIdx + searchKey.length());
+        if (colonIdx == -1) return null;
+        int startQuote = json.indexOf('"', colonIdx + 1);
+        if (startQuote == -1) return null;
+        int start = startQuote + 1;
         int end = start;
         while (end < json.length()) {
             char c = json.charAt(end);
@@ -732,6 +765,12 @@ public final class UniverseWebPanel {
         String val = json.substring(start, end);
         return val.replace("\\\"", "\"").replace("\\\\", "\\").replace("\\n", "\n").replace("\\r", "\r");
     }
+
+    private static String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
 
     // --- Modern Public Web Portal SPA ---
     private static final String PUBLIC_PORTAL_HTML = """
@@ -1033,13 +1072,14 @@ public final class UniverseWebPanel {
 
   <div class="layout">
     <nav>
-      <button class="nav-btn active" onclick="showTab('dashboard')">📊 Dashboard</button>
-      <button class="nav-btn" onclick="showTab('players')">👥 Jugadores</button>
-      <button class="nav-btn" onclick="showTab('console')">💻 Consola</button>
-      <button class="nav-btn" onclick="showTab('users')">🔑 Usuarios</button>
-      <button class="nav-btn" onclick="showTab('branding')">🎨 Branding & Web</button>
-      <button class="nav-btn" onclick="showTab('tuning')">⚡ Motor 15k</button>
+      <button class="nav-btn active" id="nav-dashboard" onclick="showTab('dashboard')">📊 Dashboard</button>
+      <button class="nav-btn" id="nav-players" onclick="showTab('players')">👥 Jugadores</button>
+      <button class="nav-btn" id="nav-console" onclick="showTab('console')">💻 Consola</button>
+      <button class="nav-btn" id="nav-users" onclick="showTab('users')">🔑 Usuarios</button>
+      <button class="nav-btn" id="nav-branding" onclick="showTab('branding')">🎨 Branding & Web</button>
+      <button class="nav-btn" id="nav-tuning" onclick="showTab('tuning')">⚡ Motor 15k</button>
     </nav>
+
 
     <main class="content">
       <!-- TAB: DASHBOARD -->
@@ -1279,11 +1319,18 @@ public final class UniverseWebPanel {
       } catch (e) { return null; }
     }
 
+    function escapeHtml(str) {
+      if (!str && str !== 0) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     function showTab(id) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('tab-' + id).classList.add('active');
-      event.target.classList.add('active');
+      const targetTab = document.getElementById('tab-' + id);
+      if (targetTab) targetTab.classList.add('active');
+      const targetNav = document.getElementById('nav-' + id);
+      if (targetNav) targetNav.classList.add('active');
       if (id === 'players') loadPlayers();
       if (id === 'users') loadUsers();
     }
@@ -1338,16 +1385,17 @@ public final class UniverseWebPanel {
       }
       tbody.innerHTML = data.players.map(p => `
         <tr>
-          <td><b>${p.name}</b></td>
-          <td>${p.world}</td>
+          <td><b>${escapeHtml(p.name)}</b></td>
+          <td>${escapeHtml(p.world)}</td>
           <td>${p.x.toFixed(0)}, ${p.y.toFixed(0)}, ${p.z.toFixed(0)}</td>
           <td>${p.ping}ms</td>
           <td>❤️ ${p.health.toFixed(0)}</td>
-          <td>${p.discord ? '<b style="color:var(--cyan);">' + p.discord + '</b>' : '<span style="color:var(--muted);">No vinculado</span>'}</td>
+          <td>${p.discord ? '<b style="color:var(--cyan);">' + escapeHtml(p.discord) + '</b>' : '<span style="color:var(--muted);">No vinculado</span>'}</td>
           <td>${p.op ? '<span class="pill pill-green">OP</span>' : 'Usuario'}</td>
           <td>
-            <button class="btn-act btn-kick" onclick="playerAction('${p.name}', 'kick')">Kick</button>
-            <button class="btn-act btn-ban" onclick="playerAction('${p.name}', 'ban')">Ban</button>
+            <button class="btn-act btn-kick" onclick="playerAction('${escapeHtml(p.name)}', 'kick')">Kick</button>
+            <button class="btn-act btn-ban" onclick="playerAction('${escapeHtml(p.name)}', 'ban')">Ban</button>
+            <button class="btn-act" style="background:var(--purple); color:#fff;" onclick="playerAction('${escapeHtml(p.name)}', 'op')">${p.op ? 'De-OP' : 'OP'}</button>
           </td>
         </tr>
       `).join('');
@@ -1369,14 +1417,14 @@ public final class UniverseWebPanel {
       input.value = '';
 
       const log = document.getElementById('consoleBox');
-      log.innerHTML += `<br><span style="color:var(--cyan);">&gt; ${cmd}</span>`;
+      log.innerHTML += `<br><span style="color:var(--cyan);">&gt; ${escapeHtml(cmd)}</span>`;
       log.scrollTop = log.scrollHeight;
 
       const res = await api('/api/command', 'POST', { command: cmd });
       if (res && res.success) {
-        log.innerHTML += `<br><span style="color:var(--muted);">[Consola] Ejecutado: ${res.dispatched}</span>`;
+        log.innerHTML += `<br><span style="color:var(--muted);">[Consola] Ejecutado: ${escapeHtml(res.dispatched)}</span>`;
       } else {
-        log.innerHTML += `<br><span style="color:var(--red);">[Error] ${res ? (res.error || res.message) : 'Fallo de ejecución'}</span>`;
+        log.innerHTML += `<br><span style="color:var(--red);">[Error] ${res ? escapeHtml(res.error || res.message) : 'Fallo de ejecución'}</span>`;
       }
       log.scrollTop = log.scrollHeight;
       refreshStatus();
@@ -1388,12 +1436,22 @@ public final class UniverseWebPanel {
       if (!data || !data.users) return;
       tbody.innerHTML = data.users.map(u => `
         <tr>
-          <td><b>${u.username}</b></td>
-          <td><span class="pill ${u.role === 'SUPER_ADMIN' ? 'pill-green' : 'pill-yellow'}">${u.role}</span></td>
+          <td><b>${escapeHtml(u.username)}</b></td>
+          <td><span class="pill ${u.role === 'SUPER_ADMIN' ? 'pill-green' : 'pill-yellow'}">${escapeHtml(u.role)}</span></td>
           <td>${new Date(u.createdAt).toLocaleDateString()}</td>
-          <td>${u.username !== 'admin' ? `<button class="btn-act btn-ban" onclick="deleteUser('${u.username}')">Eliminar</button>` : '<i>Protegido</i>'}</td>
+          <td>
+            <button class="btn-act" style="background:#00b4d8; color:#fff;" onclick="changeUserPassword('${escapeHtml(u.username)}')">Clave</button>
+            ${u.username !== 'admin' ? `<button class="btn-act btn-ban" onclick="deleteUser('${escapeHtml(u.username)}')">Eliminar</button>` : '<i>Protegido</i>'}
+          </td>
         </tr>
       `).join('');
+    }
+
+    async function changeUserPassword(username) {
+      const p = prompt('Nueva contraseña para ' + username + ' (mínimo 4 caracteres):');
+      if (!p) return;
+      const res = await api('/api/users/password', 'POST', { username, newPassword: p });
+      alert(res ? res.message : 'Error');
     }
 
     async function createUser() {
@@ -1413,6 +1471,7 @@ public final class UniverseWebPanel {
       await api('/api/users/delete', 'POST', { username });
       loadUsers();
     }
+
 
     async function saveBranding() {
       const body = {

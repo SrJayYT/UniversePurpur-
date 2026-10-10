@@ -99,22 +99,33 @@ public final class UniverseMemoryGovernor implements Runnable {
     }
 
     private void triggerAsyncSafeTrim() {
-        if (Bukkit.isPrimaryThread()) {
-            trimCaches();
-        } else {
-            // Dispatch to primary server thread to prevent Paper AsyncCatcher exceptions
-            try {
-                Bukkit.getScheduler().runTask(new MinecraftInternalPlugin(), this::trimCaches);
-            } catch (Throwable ignore) {
-            }
-        }
+        trimCaches();
     }
 
     /**
      * Intelligently trims volatile world caches, unloaded chunk data, and invites GC reclamation.
-     * Guaranteed safe execution on primary server thread.
+     * Guaranteed 100% thread-safe with primary server thread dispatch against Paper AsyncCatcher violations.
      */
     public int trimCaches() {
+        if (!Bukkit.isPrimaryThread()) {
+            java.util.concurrent.CompletableFuture<Integer> future = new java.util.concurrent.CompletableFuture<>();
+            try {
+                Bukkit.getScheduler().runTask(new MinecraftInternalPlugin(), () -> {
+                    try {
+                        future.complete(doTrimCaches());
+                    } catch (Throwable t) {
+                        future.complete(0);
+                    }
+                });
+                return future.get(3, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Throwable t) {
+                return 0;
+            }
+        }
+        return doTrimCaches();
+    }
+
+    private int doTrimCaches() {
         autoTrimCount.incrementAndGet();
         int freedChunks = 0;
 
@@ -136,6 +147,7 @@ public final class UniverseMemoryGovernor implements Runnable {
 
         return freedChunks;
     }
+
 
     public double getHeapUsedMb() {
         return heapUsedMb;

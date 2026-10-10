@@ -29,6 +29,9 @@ public class UniverseLinkCommand extends Command {
 
     @Override
     public List<String> tabComplete(CommandSender sender, String alias, String[] args) {
+        if (args.length == 1) {
+            return Arrays.asList("unlink", "desvincular");
+        }
         return Collections.emptyList();
     }
 
@@ -40,13 +43,26 @@ public class UniverseLinkCommand extends Command {
         }
 
         UniverseDiscordLinker linker = UniverseDiscordLinker.instance();
+
+        if (args.length > 0 && (args[0].equalsIgnoreCase("unlink") || args[0].equalsIgnoreCase("desvincular"))) {
+            boolean unlinked = linker.unlink(player.getUniqueId());
+            if (unlinked) {
+                player.sendMessage(Component.text("✔ Tu cuenta de Discord ha sido desvinculada exitosamente.", NamedTextColor.GREEN));
+            } else {
+                player.sendMessage(Component.text("Tu cuenta no está vinculada a ninguna cuenta de Discord.", NamedTextColor.RED));
+            }
+            return true;
+        }
+
         UniverseDiscordLinker.LinkedAccount existing = linker.getByPlayer(player.getUniqueId());
         if (existing != null) {
             player.sendMessage(Component.text("✔ Tu cuenta ya está vinculada con Discord: ", NamedTextColor.GREEN)
                     .append(Component.text(existing.discordTag, NamedTextColor.AQUA)));
-            player.sendMessage(Component.text("Si deseas desvincularla, hazlo desde la web pública o con el Bot.", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("Para desvincularla escribe: ", NamedTextColor.GRAY)
+                    .append(Component.text("/link unlink", NamedTextColor.YELLOW)));
             return true;
         }
+
 
         String code = linker.generateCode(player);
         player.sendMessage(Component.text("========================================", NamedTextColor.DARK_PURPLE));

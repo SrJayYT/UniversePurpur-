@@ -230,7 +230,11 @@ public class UniverseSpigotCommand extends Command {
         long maxMb = runtime.maxMemory() / 1024L / 1024L;
 
         int totalPlayers = Bukkit.getOnlinePlayers().size();
-        int totalLoadedChunks = Bukkit.getWorlds().stream().mapToInt(w -> w.getLoadedChunks().length).sum();
+        int totalLoadedChunks = Bukkit.isPrimaryThread()
+                ? Bukkit.getWorlds().stream().mapToInt(w -> w.getLoadedChunks().length).sum()
+                : org.purpurmc.purpur.web.UniverseWebPanel.instance().getCachedLoadedChunks();
+
+
 
         sender.sendMessage(Component.text("========================================", NamedTextColor.DARK_GRAY));
         sender.sendMessage(Component.text(" UniverseSpigot 15k Hyper-Scale Dashboard ", NamedTextColor.GOLD, TextDecoration.BOLD)

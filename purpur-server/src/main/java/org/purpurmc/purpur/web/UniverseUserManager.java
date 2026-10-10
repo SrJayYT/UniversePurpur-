@@ -66,7 +66,9 @@ public final class UniverseUserManager {
     private File storageFile;
 
     private UniverseUserManager() {
-        storageFile = new File("universe-users.json");
+        File baseDir = org.purpurmc.purpur.UniversePurpurConfig.SERVER_ROOT_DIR != null
+                ? org.purpurmc.purpur.UniversePurpurConfig.SERVER_ROOT_DIR : new File(".");
+        this.storageFile = new File(baseDir, "universe-users.json");
         loadUsers();
         // Ensure default admin user exists if empty
         if (users.isEmpty()) {
@@ -86,7 +88,10 @@ public final class UniverseUserManager {
         User user = users.get(username.toLowerCase());
         if (user == null) return false;
         String computedHash = hashPassword(password, user.salt);
-        return computedHash.equals(user.passwordHash);
+        return MessageDigest.isEqual(
+                computedHash.getBytes(StandardCharsets.UTF_8),
+                user.passwordHash.getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     public Session createSession(String username) {
@@ -136,6 +141,25 @@ public final class UniverseUserManager {
         return true;
     }
 
+    public boolean updatePassword(String username, String newPassword) {
+        if (username == null || newPassword == null || newPassword.length() < 4) {
+            return false;
+        }
+        String lower = username.trim().toLowerCase();
+        User existing = users.get(lower);
+        if (existing == null) {
+            return false;
+        }
+        byte[] saltBytes = new byte[16];
+        random.nextBytes(saltBytes);
+        String salt = Base64.getEncoder().encodeToString(saltBytes);
+        String hash = hashPassword(newPassword, salt);
+        existing.salt = salt;
+        existing.passwordHash = hash;
+        saveUsers();
+        return true;
+    }
+
     public boolean deleteUser(String username) {
         if (username == null) return false;
         String lower = username.trim().toLowerCase();
@@ -162,6 +186,11 @@ public final class UniverseUserManager {
         }
     }
 
+    private static String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
     private void saveUsers() {
         try (FileWriter writer = new FileWriter(storageFile, StandardCharsets.UTF_8)) {
             StringBuilder sb = new StringBuilder();
@@ -171,13 +200,14 @@ public final class UniverseUserManager {
                 if (!first) sb.append(",\n");
                 first = false;
                 sb.append(String.format("  {\"username\":\"%s\",\"salt\":\"%s\",\"hash\":\"%s\",\"role\":\"%s\",\"createdAt\":%d}",
-                        u.username, u.salt, u.passwordHash, u.role.name(), u.createdAt));
+                        escapeJson(u.username), escapeJson(u.salt), escapeJson(u.passwordHash), u.role.name(), u.createdAt));
             }
             sb.append("\n]");
             writer.write(sb.toString());
         } catch (Throwable ignore) {
         }
     }
+
 
     private void loadUsers() {
         if (!storageFile.exists()) return;

@@ -24,8 +24,8 @@ public final class UniversePurpurConfig {
             =============================================================================
             """;
 
-    private static File SERVER_ROOT_DIR;
-    private static File CONFIG_FILE;
+    public static File SERVER_ROOT_DIR;
+    public static File CONFIG_FILE;
     public static YamlConfiguration config;
 
     // --- Global Runtime Flags ---

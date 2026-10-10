@@ -64,9 +64,12 @@ public final class UniverseDiscordLinker {
     private final Map<String, LinkedAccount> linkedByDiscord = new ConcurrentHashMap<>();
 
     private final SecureRandom random = new SecureRandom();
-    private final File storageFile = new File("universe-discord-links.json");
+    private final File storageFile;
 
     private UniverseDiscordLinker() {
+        File baseDir = org.purpurmc.purpur.UniversePurpurConfig.SERVER_ROOT_DIR != null
+                ? org.purpurmc.purpur.UniversePurpurConfig.SERVER_ROOT_DIR : new File(".");
+        this.storageFile = new File(baseDir, "universe-discord-links.json");
         loadLinks();
     }
 
@@ -117,17 +120,30 @@ public final class UniverseDiscordLinker {
             return false;
         }
 
+        String cleanDiscordId = discordId.trim();
+        String cleanDiscordTag = discordTag != null ? discordTag.trim() : cleanDiscordId;
+
+        // Clean up any existing reverse mappings to avoid dangling references
+        LinkedAccount prevByPlayer = linkedByPlayer.remove(lc.playerUuid);
+        if (prevByPlayer != null) {
+            linkedByDiscord.remove(prevByPlayer.discordId);
+        }
+        LinkedAccount prevByDiscord = linkedByDiscord.remove(cleanDiscordId);
+        if (prevByDiscord != null) {
+            linkedByPlayer.remove(prevByDiscord.playerUuid);
+        }
+
         // Link account
         LinkedAccount account = new LinkedAccount(
                 lc.playerUuid,
                 lc.playerName,
-                discordId.trim(),
-                discordTag != null ? discordTag.trim() : discordId.trim(),
+                cleanDiscordId,
+                cleanDiscordTag,
                 System.currentTimeMillis()
         );
 
         linkedByPlayer.put(lc.playerUuid, account);
-        linkedByDiscord.put(discordId.trim(), account);
+        linkedByDiscord.put(cleanDiscordId, account);
 
         // Remove used code
         pendingCodes.remove(cleanCode);
@@ -182,6 +198,11 @@ public final class UniverseDiscordLinker {
         return linkedByPlayer;
     }
 
+    private static String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
     private void saveLinks() {
         try (FileWriter writer = new FileWriter(storageFile, StandardCharsets.UTF_8)) {
             StringBuilder sb = new StringBuilder();
@@ -191,13 +212,14 @@ public final class UniverseDiscordLinker {
                 if (!first) sb.append(",\n");
                 first = false;
                 sb.append(String.format("  {\"uuid\":\"%s\",\"name\":\"%s\",\"discordId\":\"%s\",\"discordTag\":\"%s\",\"linkedAt\":%d}",
-                        acc.playerUuid.toString(), acc.playerName, acc.discordId, acc.discordTag, acc.linkedAt));
+                        escapeJson(acc.playerUuid.toString()), escapeJson(acc.playerName), escapeJson(acc.discordId), escapeJson(acc.discordTag), acc.linkedAt));
             }
             sb.append("\n]");
             writer.write(sb.toString());
         } catch (Throwable ignore) {
         }
     }
+
 
     private void loadLinks() {
         if (!storageFile.exists()) return;
