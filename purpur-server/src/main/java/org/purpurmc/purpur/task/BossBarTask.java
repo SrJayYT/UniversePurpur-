@@ -92,12 +92,14 @@ public abstract class BossBarTask extends BukkitRunnable {
         RamBarTask.instance().start();
         TPSBarTask.instance().start();
         CompassTask.instance().start();
+        UniverseGovernorTask.instance().start();
     }
 
     public static void stopAll() {
         RamBarTask.instance().stop();
         TPSBarTask.instance().stop();
         CompassTask.instance().stop();
+        UniverseGovernorTask.instance().stop();
     }
 
     public static void addToAll(ServerPlayer player) {

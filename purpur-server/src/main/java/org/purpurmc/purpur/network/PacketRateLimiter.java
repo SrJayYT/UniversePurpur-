@@ -6,7 +6,8 @@ import org.purpurmc.purpur.UniversePurpurConfig;
 
 /**
  * Ultra-high-performance lock-free Packet Rate Limiter for massive server connections (+10,000 players).
- * Employs an atomic token bucket algorithm to suppress crasher floods and packet storms before tick loops.
+ * Employs a proportional atomic token bucket algorithm to suppress crasher floods and packet storms
+ * while preventing packet starvation for regular players.
  *
  * Author: DevPapo
  */
@@ -45,10 +46,17 @@ public final class PacketRateLimiter {
         long now = System.currentTimeMillis();
         long last = lastRefillTimestamp.get();
         long elapsed = now - last;
+        if (elapsed <= 0) {
+            return;
+        }
 
-        if (elapsed >= 1000L && lastRefillTimestamp.compareAndSet(last, now)) {
-            int maxRate = Math.max(10, UniversePurpurConfig.maxPacketsPerSecond);
-            tokens.set(maxRate);
+        int maxRate = Math.max(10, UniversePurpurConfig.maxPacketsPerSecond);
+        int maxBurst = Math.max(maxRate, UniversePurpurConfig.packetBurstLimit);
+
+        // Proportional token refill: add tokens based on elapsed time without starving legitimate players
+        long tokensToAdd = (elapsed * maxRate) / 1000L;
+        if (tokensToAdd > 0 && lastRefillTimestamp.compareAndSet(last, now)) {
+            tokens.updateAndGet(current -> (int) Math.min(maxBurst, current + tokensToAdd));
         }
     }
 

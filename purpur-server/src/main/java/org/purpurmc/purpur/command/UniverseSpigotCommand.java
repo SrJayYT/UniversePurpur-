@@ -53,7 +53,7 @@ public class UniverseSpigotCommand extends Command {
                     .collect(Collectors.toList());
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("purge")) {
-            return Stream.of("items", "ambient")
+            return Stream.of("items", "ambient", "monsters")
                     .filter(arg -> arg.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
         }
@@ -115,10 +115,14 @@ public class UniverseSpigotCommand extends Command {
             }
             case "purge" -> {
                 if (args.length < 2) {
-                    sender.sendMessage(Component.text("Usage: /universespigot purge <items | ambient>", NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Usage: /universespigot purge <items | ambient | monsters>", NamedTextColor.RED));
                     return false;
                 }
                 String target = args[1].toLowerCase();
+                if (!target.equals("items") && !target.equals("ambient") && !target.equals("monsters")) {
+                    sender.sendMessage(Component.text("Invalid purge target. Use 'items', 'ambient' or 'monsters'.", NamedTextColor.RED));
+                    return false;
+                }
                 int purgedCount = 0;
                 for (World world : Bukkit.getWorlds()) {
                     if (target.equals("items")) {
@@ -129,6 +133,11 @@ public class UniverseSpigotCommand extends Command {
                     } else if (target.equals("ambient")) {
                         for (Ambient ambient : world.getEntitiesByClass(Ambient.class)) {
                             ambient.remove();
+                            purgedCount++;
+                        }
+                    } else if (target.equals("monsters")) {
+                        for (org.bukkit.entity.Monster monster : world.getEntitiesByClass(org.bukkit.entity.Monster.class)) {
+                            monster.remove();
                             purgedCount++;
                         }
                     }

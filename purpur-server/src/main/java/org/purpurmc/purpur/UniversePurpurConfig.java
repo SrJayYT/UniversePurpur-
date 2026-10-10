@@ -208,7 +208,11 @@ public final class UniversePurpurConfig {
 
     // --- Per-World & Preset Query Helpers ---
     public static String getWorldPreset(String worldName) {
-        return getString("world-rules." + worldName + ".preset", "default");
+        String worldPath = "world-rules." + worldName + ".preset";
+        if (config != null && config.contains(worldPath)) {
+            return config.getString(worldPath, "10k-hub");
+        }
+        return "10k-hub";
     }
 
     public static boolean isWorldEnabled(String worldName) {

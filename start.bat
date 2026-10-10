@@ -22,6 +22,14 @@ if not exist "%JAR_FILE%" (
 )
 :found_jar
 
+if not exist "%JAR_FILE%" (
+    echo [ERROR] No server JAR found in this directory!
+    echo Please place your server JAR here (e.g. universepurpur.jar) before starting.
+    echo.
+    pause
+    exit /b 1
+)
+
 echo Target JAR: %JAR_FILE%
 echo Initializing JVM with Generational ZGC (Low-Latency Ultra-Throughput)...
 echo.

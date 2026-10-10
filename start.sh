@@ -18,6 +18,12 @@ if [ ! -f "$JAR_FILE" ]; then
     done
 fi
 
+if [ ! -f "$JAR_FILE" ]; then
+    echo "[ERROR] No server JAR found in this directory! (Target: $JAR_FILE)"
+    echo "Please compile or place the server JAR in this folder before launching."
+    exit 1
+fi
+
 echo "==============================================================================="
 echo " Starting UniverseSpigot / UniversePurpur (10k Extreme Scale Edition)"
 echo " Author: DevPapo"

@@ -1,7 +1,9 @@
 package org.purpurmc.purpur.task;
 
 import org.bukkit.Bukkit;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.purpurmc.purpur.UniversePurpurConfig;
+import org.purpurmc.purpur.util.MinecraftInternalPlugin;
 
 /**
  * Dynamic MSPT Governor and Lag Mitigation Engine for UniverseSpigot.
@@ -10,8 +12,9 @@ import org.purpurmc.purpur.UniversePurpurConfig;
  *
  * Author: DevPapo
  */
-public class UniverseGovernorTask implements Runnable {
+public class UniverseGovernorTask extends BukkitRunnable {
     private static UniverseGovernorTask instance;
+    private boolean started = false;
 
     // Throttle Levels:
     // 0: NORMAL - MSPT < 35.0ms (Optimal, full fidelity)
@@ -30,6 +33,19 @@ public class UniverseGovernorTask implements Runnable {
             instance = new UniverseGovernorTask();
         }
         return instance;
+    }
+
+    public void start() {
+        stop();
+        this.runTaskTimerAsynchronously(new MinecraftInternalPlugin(), 20L, 20L);
+        started = true;
+    }
+
+    public void stop() {
+        if (started) {
+            cancel();
+            started = false;
+        }
     }
 
     @Override
