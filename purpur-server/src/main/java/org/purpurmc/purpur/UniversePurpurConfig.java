@@ -100,6 +100,12 @@ public final class UniversePurpurConfig {
     public static int hopperThrottleEmptyTicks = 8;
     public static int redstoneMaxUpdatesPerTick = 5000;
 
+    // --- Titan Hyper-Scale Modules (+15,000 Players) ---
+    public static boolean spatialGridEnabled = true;
+    public static boolean memoryAutoTrimEnabled = true;
+    public static double memoryTrimThresholdPercent = 85.0D;
+    public static boolean antiCrashShieldEnabled = true;
+
     private UniversePurpurConfig() {}
 
     public static void init(File serverRootDir) {
@@ -125,6 +131,8 @@ public final class UniversePurpurConfig {
         save();
         try {
             org.purpurmc.purpur.task.UniverseGovernorTask.instance().start();
+            org.purpurmc.purpur.task.UniverseMemoryGovernor.instance().start();
+            org.purpurmc.purpur.util.UniverseBanner.print();
         } catch (Throwable ignore) {
         }
     }
@@ -211,6 +219,12 @@ public final class UniversePurpurConfig {
         hopperCacheInventoryLookups = getBoolean("global.hoppers.cache-inventory-lookups", hopperCacheInventoryLookups);
         hopperThrottleEmptyTicks = getInt("global.hoppers.throttle-empty-ticks", hopperThrottleEmptyTicks);
         redstoneMaxUpdatesPerTick = getInt("global.redstone.max-updates-per-tick", redstoneMaxUpdatesPerTick);
+
+        // Titan Enterprise Modules
+        spatialGridEnabled = getBoolean("global.performance.spatial-grid-enabled", spatialGridEnabled);
+        memoryAutoTrimEnabled = getBoolean("global.performance.memory-auto-trim.enabled", memoryAutoTrimEnabled);
+        memoryTrimThresholdPercent = getDouble("global.performance.memory-auto-trim.threshold-percent", memoryTrimThresholdPercent);
+        antiCrashShieldEnabled = getBoolean("global.security.anti-crash-shield.enabled", antiCrashShieldEnabled);
     }
 
     // --- Dynamic Governor Query Helpers ---

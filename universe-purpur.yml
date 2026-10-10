@@ -111,6 +111,22 @@ global:
   redstone:
     max-updates-per-tick: 5000         # Caps runaway redstone clocks / lag machines
 
+  # ---------------------------------------------------------------------------
+  # Titan Enterprise Performance Modules
+  # ---------------------------------------------------------------------------
+  performance:
+    spatial-grid-enabled: true         # 2D Spatial partitioning for O(1) nearby player lookups
+    memory-auto-trim:
+      enabled: true                    # Auto-cleans stale caches before Stop-The-World GC spikes
+      threshold-percent: 85.0          # Triggers pruning if heap usage exceeds 85%
+
+  # ---------------------------------------------------------------------------
+  # Enterprise Exploit & Anti-Crasher Shield
+  # ---------------------------------------------------------------------------
+  security:
+    anti-crash-shield:
+      enabled: true                    # Defends against NaN vectors, oversized NBT and malformed packets
+
 # =============================================================================
 # Presets: Hyper-Scale Presets for +15,000 Players Environments
 # =============================================================================

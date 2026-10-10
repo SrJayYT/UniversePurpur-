@@ -1,4 +1,4 @@
-# TODO - UniversePurpur / UniverseSpigot (+15,000 Players Online Hyper-Scale Optimization)
+# TODO - UniversePurpur / UniverseSpigot (+15,000 Players Online Titan Hyper-Scale)
 
 - [x] 1) Configurar repositorio Git local y resolver incompatibilidad de toolchain Java (Java 24 detectado localmente).
 - [x] 2) Motor de configuración masiva en `UniversePurpurConfig.java`:
@@ -16,3 +16,8 @@
 - [x] 7) Implementar `PacketRateLimiter.java` lock-free con Token Bucket adaptativo proporcional conectado al Governor.
 - [x] 8) Implementar `/universespigot` (`UniverseSpigotCommand.java`) con Dashboard en vivo de 15k, métricas de Player Culling y cambio de perfiles en caliente.
 - [x] 9) Crear scripts de arranque optimizados `start.bat` (Windows) y `start.sh` (Linux).
+- [x] 10) Módulo `SpatialGrid.java`: particionado espacial 2D en cubos 32x32 para consultas O(1) de proximidad y culling de jugadores.
+- [x] 11) Módulo `UniverseMemoryGovernor.java`: telemetría de saturación de Heap y pausas de GC con poda proactiva de cachés de chunks.
+- [x] 12) Módulo `AntiCrashShield.java`: blindaje contra exploits Zero-Day (vectores NaN/Infinity, paquetes con NBT >16KB y slots inválidos).
+- [x] 13) Módulo `UniverseBanner.java`: diagnóstico de telemetría ANSI en consola al arrancar el servidor.
+- [x] 14) Subcomandos `/universespigot memory [trim]` y `/universespigot shield` integrados en el comando de diagnóstico.

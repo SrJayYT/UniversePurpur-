@@ -117,10 +117,21 @@ java -Xms48G -Xmx48G \
 
 ---
 
-## 6. Panel de Diagnóstico en Tiempo Real
+## 6. Módulos Titan Enterprise de Alto Rendimiento (10x Boost)
 
-Ejecuta en consola o en juego (con permiso `bukkit.command.universespigot`):
-```
-/universespigot status
-```
-Muestra en vivo: TPS, MSPT, Nivel del Governor (Level 0 al 4), límite de Player Culling, memoria física/asignada y estado del Rate Limiter Netty.
+* **Spatial Grid 2D (`SpatialGrid`):** Indexación espacial de entidades y jugadores en celdas de $32 \times 32$ bloques. Permite consultas de proximidad y culling de jugadores en tiempo $O(1)$ sin escanear el mundo entero.
+* **Auto-Garbage Healer (`UniverseMemoryGovernor`):** Monitorea la saturación del Heap de la JVM y los tiempos de pausa del GC cada 5 segundos. Si la memoria supera el 85%, poda automáticamente las cachés de chunks antes de que se produzca una pausa "Stop-The-World".
+* **Anti-Crasher & Exploit Shield (`AntiCrashShield`):** Filtra en tiempo real vectores de movimiento maliciosos con valores `NaN` / `Infinity`, paquetes con NBT sobredimensionados (> 16KB) y ranuras de inventario fuera de rango utilizadas por clientes hackeados.
+* **Diagnóstico de Arranque ANSI (`UniverseBanner`):** Muestra al arrancar el servidor un panel con la telemetría del host (núcleos de CPU, memoria asignada, versión de JVM y estado de los gobernadores).
+
+---
+
+## 7. Panel de Diagnóstico y Comandos en Vivo
+
+* `/universespigot status`: Panel de telemetría en vivo (TPS, MSPT, Governor, Culling, RAM, Netty).
+* `/universespigot memory [trim]`: Muestra telemetría de pausas de GC y permite liberar cachés en caliente.
+* `/universespigot shield`: Muestra estadísticas de paquetes y exploits maliciosos bloqueados.
+* `/universespigot profile <preset>`: Cambia de preset en caliente (`15k-hyper-hub`, `15k-mega-arena`, `15k-scale-smp`).
+* `/universespigot lagprotection <on | off | auto>`: Control manual o automático del modo de emergencia.
+* `/universespigot purge <items | ambient | monsters>`: Purga de emergencia de entidades en el suelo.
+

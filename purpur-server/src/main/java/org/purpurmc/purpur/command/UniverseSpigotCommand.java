@@ -17,10 +17,12 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Ambient;
 import org.bukkit.entity.Item;
 import org.purpurmc.purpur.UniversePurpurConfig;
+import org.purpurmc.purpur.network.AntiCrashShield;
 import org.purpurmc.purpur.task.UniverseGovernorTask;
+import org.purpurmc.purpur.task.UniverseMemoryGovernor;
 
 /**
- * Administrative and Diagnostics Command for UniverseSpigot (+10,000 Players Engine).
+ * Administrative and Diagnostics Command for UniverseSpigot (+15,000 Players Titan Engine).
  *
  * Aliases: /universespigot, /uspigot, /universe
  * Author: DevPapo
@@ -29,8 +31,8 @@ public class UniverseSpigotCommand extends Command {
 
     public UniverseSpigotCommand(String name) {
         super(name);
-        this.description = "UniverseSpigot 10k Engine diagnostics, profile manager and lag controls";
-        this.usageMessage = "/universespigot [status | reload | profile <name> | lagprotection <on|off|auto> | purge <items|ambient>]";
+        this.description = "UniverseSpigot 15k Titan Engine diagnostics, profile manager and lag controls";
+        this.usageMessage = "/universespigot [status | reload | profile <name> | lagprotection <on|off|auto> | purge <items|ambient|monsters> | memory [trim] | shield]";
         this.setPermission("bukkit.command.universespigot");
         this.setAliases(Arrays.asList("uspigot", "universe"));
     }
@@ -38,7 +40,7 @@ public class UniverseSpigotCommand extends Command {
     @Override
     public List<String> tabComplete(CommandSender sender, String alias, String[] args, Location location) throws IllegalArgumentException {
         if (args.length == 1) {
-            return Stream.of("status", "reload", "profile", "lagprotection", "purge")
+            return Stream.of("status", "reload", "profile", "lagprotection", "purge", "memory", "shield")
                     .filter(arg -> arg.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
@@ -54,6 +56,11 @@ public class UniverseSpigotCommand extends Command {
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("purge")) {
             return Stream.of("items", "ambient", "monsters")
+                    .filter(arg -> arg.startsWith(args[1].toLowerCase()))
+                    .collect(Collectors.toList());
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("memory")) {
+            return Stream.of("trim")
                     .filter(arg -> arg.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
         }
@@ -75,7 +82,7 @@ public class UniverseSpigotCommand extends Command {
         switch (sub) {
             case "reload" -> {
                 UniversePurpurConfig.reload(new File("."));
-                sender.sendMessage(Component.text("✔ UniverseSpigot 10k configuration reloaded successfully.", NamedTextColor.GREEN));
+                sender.sendMessage(Component.text("✔ UniverseSpigot 15k configuration reloaded successfully.", NamedTextColor.GREEN));
                 sender.sendMessage(Component.text("Active Profile: ", NamedTextColor.GRAY)
                         .append(Component.text(UniversePurpurConfig.profile, NamedTextColor.GOLD)));
             }
@@ -144,6 +151,36 @@ public class UniverseSpigotCommand extends Command {
                 }
                 sender.sendMessage(Component.text("✔ Purged " + purgedCount + " " + target + " across all active worlds.", NamedTextColor.GREEN));
             }
+            case "memory" -> {
+                UniverseMemoryGovernor memoryGovernor = UniverseMemoryGovernor.instance();
+                if (args.length >= 2 && args[1].equalsIgnoreCase("trim")) {
+                    int cleaned = memoryGovernor.trimCaches();
+                    sender.sendMessage(Component.text("✔ Proactive memory trimming executed. Touched " + cleaned + " world partitions.", NamedTextColor.GREEN));
+                }
+                memoryGovernor.run();
+                sender.sendMessage(Component.text("=== UniverseSpigot JVM Memory Telemetry ===", NamedTextColor.DARK_GRAY));
+                sender.sendMessage(Component.text("• Heap: ", NamedTextColor.GRAY)
+                        .append(Component.text(String.format("%.1f MB", memoryGovernor.getHeapUsedMb()), NamedTextColor.WHITE))
+                        .append(Component.text(" / ", NamedTextColor.DARK_GRAY))
+                        .append(Component.text(String.format("%.1f MB (%.1f%%)", memoryGovernor.getHeapMaxMb(), memoryGovernor.getHeapUsagePercent()),
+                                memoryGovernor.getHeapUsagePercent() < 80.0D ? NamedTextColor.GREEN : NamedTextColor.YELLOW)));
+                sender.sendMessage(Component.text("• Total GC Pause Time: ", NamedTextColor.GRAY)
+                        .append(Component.text(memoryGovernor.getTotalGcPauseTimeMs() + " ms", NamedTextColor.AQUA)));
+                sender.sendMessage(Component.text("• Auto-Trim Count: ", NamedTextColor.GRAY)
+                        .append(Component.text(memoryGovernor.getAutoTrimCount(), NamedTextColor.WHITE)));
+            }
+            case "shield" -> {
+                AntiCrashShield shield = AntiCrashShield.instance();
+                sender.sendMessage(Component.text("=== UniverseSpigot Exploit & Anti-Crash Shield ===", NamedTextColor.DARK_GRAY));
+                sender.sendMessage(Component.text("• Total Blocked Exploits: ", NamedTextColor.GRAY)
+                        .append(Component.text(shield.getTotalBlockedExploits(), NamedTextColor.GOLD)));
+                sender.sendMessage(Component.text("• Malformed Movements (NaN/Infinity): ", NamedTextColor.GRAY)
+                        .append(Component.text(shield.getBlockedInvalidMovement(), NamedTextColor.WHITE)));
+                sender.sendMessage(Component.text("• Oversized NBT Payloads: ", NamedTextColor.GRAY)
+                        .append(Component.text(shield.getBlockedOversizedPayloads(), NamedTextColor.WHITE)));
+                sender.sendMessage(Component.text("• Invalid Container Window Slots: ", NamedTextColor.GRAY)
+                        .append(Component.text(shield.getBlockedInvalidSlots(), NamedTextColor.WHITE)));
+            }
             default -> sender.sendMessage(Component.text("Unknown subcommand. Use /" + commandLabel + " status", NamedTextColor.RED));
         }
 
@@ -204,6 +241,12 @@ public class UniverseSpigotCommand extends Command {
 
         sender.sendMessage(Component.text("• Netty Limiter: ", NamedTextColor.GRAY)
                 .append(Component.text(UniversePurpurConfig.packetRateLimitEnabled ? (UniversePurpurConfig.maxPacketsPerSecond + " pps" + (UniversePurpurConfig.adaptiveRateLimiting ? " [ADAPTIVE]" : "")) : "DISABLED", NamedTextColor.GREEN)));
+
+        sender.sendMessage(Component.text("• Spatial Partitioning: ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.spatialGridEnabled ? "ENABLED (32x32 Grid)" : "DISABLED", NamedTextColor.WHITE)));
+
+        sender.sendMessage(Component.text("• Anti-Crash Shield: ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.antiCrashShieldEnabled ? "ACTIVE (Zero-Day Hardened)" : "DISABLED", NamedTextColor.GREEN)));
 
         sender.sendMessage(Component.text("========================================", NamedTextColor.DARK_GRAY));
     }
