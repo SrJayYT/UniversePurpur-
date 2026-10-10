@@ -4,47 +4,30 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-10-10T18:55:00-04:00",
+    "exported_at": "2026-10-10T19:10:00-04:00",
     "name": "UniversePurpur (+15,000 Players Titan Engine)",
-    "author": "support@universepurpur.io",
-    "description": "UniversePurpur es una bifurcación empresarial de alto rendimiento de Purpur y Paper diseñada para mega-redes (+15,000 jugadores simultáneos).\r\n\r\nCaracterísticas:\r\n- Dynamic MSPT Governor autónomo de 5 niveles\r\n- Particionado Espacial 2D O(1) con proximity sorting\r\n- Limitador Lock-Free de Paquetes Netty (Token Bucket adaptativo)\r\n- Blindaje Anti-Crasher y Zero-Day Exploit Protection\r\n- Servidor Web Embebido Dual-Port (Java 25565 + Web 25566, Geyser 19132) con portal público y panel de administración.",
+    "author": "admin@scon.host",
+    "description": "UniversePurpur es una bifurcaci\u00f3n empresarial de alto rendimiento de Purpur y Paper dise\u00f1ada para mega-redes (+15,000 jugadores simult\u00e1neos) y servidores ultra-optimizados de m\u00ednimo consumo de RAM y CPU.\r\n\r\nCaracter\u00edsticas:\r\n- Dynamic MSPT Governor aut\u00f3nomo de 5 niveles\r\n- Particionado Espacial 2D O(1) con proximity sorting\r\n- Limitador Lock-Free de Paquetes Netty (Token Bucket adaptativo)\r\n- Blindaje Anti-Crasher y Zero-Day Exploit Protection\r\n- Servidor Web Embebido Dual-Port (Java 25565 + Web 25566, Geyser 19132) con portal p\u00fablico y panel de administraci\u00f3n\r\n- Telemetr\u00eda event-driven O(1) y Aggressive Memory Saver.",
     "features": [
         "eula",
-        "java_version"
+        "java_version",
+        "pid_limit"
     ],
     "docker_images": {
         "Java 24 (ZGC Generacional - Recomendado)": "ghcr.io/pterodactyl/yolks:java_24",
-        "Java 21 LTS": "ghcr.io/pterodactyl/yolks:java_21",
-        "Eclipse Temurin 24 (Noble)": "eclipse-temurin:24-jdk-noble"
+        "Java 21 LTS": "ghcr.io/pterodactyl/yolks:java_21"
     },
     "file_denylist": [],
     "startup": "java -Xms128M -Xmx{{SERVER_MEMORY}}M {{JVM_FLAGS}} -Dterminal.jline=false -Dterminal.ansi=true -jar {{SERVER_JARFILE}} nogui",
     "config": {
-        "files": {
-            "server.properties": {
-                "parser": "properties",
-                "find": {
-                    "server-port": "{{server.build.default.port}}"
-                }
-            },
-            "universe-purpur.yml": {
-                "parser": "yaml",
-                "find": {
-                    "global.web-panel.port": "{{WEB_PORT}}",
-                    "global.web-panel.auth-token": "{{WEB_AUTH_TOKEN}}",
-                    "performance.profile": "{{UNIVERSE_PROFILE}}"
-                }
-            }
-        },
-        "startup": {
-            "done": ") Done (",
-            "userInteraction": []
-        },
+        "files": "{\r\n    \"server.properties\": {\r\n        \"parser\": \"properties\",\r\n        \"find\": {\r\n            \"server-ip\": \"0.0.0.0\",\r\n            \"server-port\": \"{{server.build.default.port}}\",\r\n            \"query.port\": \"{{server.build.default.port}}\"\r\n        }\r\n    },\r\n    \"universe-purpur.yml\": {\r\n        \"parser\": \"yaml\",\r\n        \"find\": {\r\n            \"global.web-panel.port\": \"{{WEB_PORT}}\",\r\n            \"global.web-panel.auth-token\": \"{{WEB_AUTH_TOKEN}}\",\r\n            \"performance.profile\": \"{{UNIVERSE_PROFILE}}\"\r\n        }\r\n    }\r\n}",
+        "startup": "{\r\n    \"done\": \") Done (\"\r\n}",
+        "logs": "{}",
         "stop": "stop"
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\r\n# UniversePurpur Pterodactyl Installer\r\n# Author: DevPapo\r\n\r\napt-get update -y\r\napt-get install -y curl jq file wget unzip\r\n\r\nmkdir -p /mnt/server\r\ncd /mnt/server\r\n\r\necho \"==========================================================\"\r\necho \" Instalando UniversePurpur (+15,000 Players Titan Engine) \"\r\necho \"==========================================================\"\r\n\r\nif [ -z \"${SERVER_JARFILE}\" ]; then\r\n    SERVER_JARFILE=\"universepurpur.jar\"\r\nfi\r\n\r\n# 1. Descarga desde URL directa si está configurada\r\nif [ -n \"${DOWNLOAD_URL}\" ] && [ \"${DOWNLOAD_URL}\" != \"null\" ]; then\r\n    echo \"Descargando UniversePurpur desde: ${DOWNLOAD_URL}\"\r\n    curl -sSL -o \"${SERVER_JARFILE}\" \"${DOWNLOAD_URL}\"\r\nfi\r\n\r\n# 2. Descarga desde Releases de GitHub si el archivo no existe o está vacío\r\nif [ ! -f \"${SERVER_JARFILE}\" ] || [ ! -s \"${SERVER_JARFILE}\" ]; then\r\n    echo \"Buscando release en GitHub: SrJayYT/UniversePurpur-...\"\r\n    LATEST_URL=$(curl -sSL https://api.github.com/repos/SrJayYT/UniversePurpur-/releases/latest | jq -r '.assets[]? | select(.name | endswith(\".jar\")) | .browser_download_url' | head -n 1)\r\n    if [ -n \"${LATEST_URL}\" ] && [ \"${LATEST_URL}\" != \"null\" ]; then\r\n        echo \"Descargando build oficial: ${LATEST_URL}\"\r\n        curl -sSL -o \"${SERVER_JARFILE}\" \"${LATEST_URL}\"\r\n    else\r\n        echo \"Aviso: No se detectó un release binario automático en GitHub.\"\r\n        echo \"Por favor sube tu JAR compilado '${SERVER_JARFILE}' mediante SFTP al directorio del servidor.\"\r\n        touch \"${SERVER_JARFILE}\"\r\n    fi\r\nfi\r\n\r\n# 3. Aceptar EULA automáticamente\r\nif [ ! -f \"eula.txt\" ]; then\r\n    echo \"Configurando eula.txt (eula=true)...\"\r\n    echo \"eula=true\" > eula.txt\r\nfi\r\n\r\necho \"==========================================================\"\r\necho \" UniversePurpur instalado correctamente.\"\r\necho \" Configuración de Puertos en Pterodactyl:\"\r\necho \"   1. Puerto Primario: Minecraft Java (${SERVER_PORT:-25565})\"\r\necho \"   2. Puerto Adicional (Allocation): Web Panel & Portal (${WEB_PORT:-25566})\"\r\necho \"   3. Puerto Bedrock (Opcional): Geyser (${GEYSER_PORT:-19132})\"\r\necho \"==========================================================\"",
+            "script": "#!/bin/bash\r\n# UniversePurpur Pterodactyl Installer\r\n# Author: DevPapo | Maintainer: admin@scon.host\r\n\r\nif [ -x \"$(command -v apt-get)\" ]; then\r\n    apt-get update -y\r\n    apt-get install -y --no-install-recommends curl jq file wget unzip\r\nelif [ -x \"$(command -v apk)\" ]; then\r\n    apk update\r\n    apk add --no-cache curl jq file wget unzip bash\r\nfi\r\n\r\nmkdir -p /mnt/server\r\ncd /mnt/server\r\n\r\necho \"==========================================================\"\r\necho \" Instalando UniversePurpur (+15,000 Players Titan Engine) \"\r\necho \" Host: scon.host | Autor: DevPapo                         \"\r\necho \"==========================================================\"\r\n\r\nif [ -z \"${SERVER_JARFILE}\" ]; then\r\n    SERVER_JARFILE=\"universepurpur.jar\"\r\nfi\r\n\r\nDOWNLOADED=false\r\n# 1. Descarga desde URL directa si est\u00e1 configurada\r\nif [ -n \"${DOWNLOAD_URL}\" ] && [ \"${DOWNLOAD_URL}\" != \"null\" ]; then\r\n    echo \"Descargando UniversePurpur desde URL directa: ${DOWNLOAD_URL}\"\r\n    if curl -sSL -f -o \"${SERVER_JARFILE}\" \"${DOWNLOAD_URL}\"; then\r\n        if [ -s \"${SERVER_JARFILE}\" ]; then\r\n            DOWNLOADED=true\r\n            echo \"JAR descargado exitosamente.\"\r\n        fi\r\n    fi\r\nfi\r\n\r\n# 2. Descarga desde Releases de GitHub si no se descarg\u00f3 a\u00fan\r\nif [ \"${DOWNLOADED}\" = \"false\" ] && ( [ ! -f \"${SERVER_JARFILE}\" ] || [ ! -s \"${SERVER_JARFILE}\" ] ); then\r\n    echo \"Buscando release en GitHub: SrJayYT/UniversePurpur-...\"\r\n    LATEST_URL=$(curl -sSL https://api.github.com/repos/SrJayYT/UniversePurpur-/releases/latest | jq -r '.assets[]? | select(.name | endswith(\".jar\")) | .browser_download_url' | head -n 1)\r\n    if [ -n \"${LATEST_URL}\" ] && [ \"${LATEST_URL}\" != \"null\" ]; then\r\n        echo \"Descargando build oficial desde GitHub: ${LATEST_URL}\"\r\n        curl -sSL -f -o \"${SERVER_JARFILE}\" \"${LATEST_URL}\"\r\n        if [ -s \"${SERVER_JARFILE}\" ]; then\r\n            DOWNLOADED=true\r\n        fi\r\n    fi\r\nfi\r\n\r\n# 3. Fallback: Si no se descarg\u00f3 JAR binario autom\u00e1ticamente\r\nif [ ! -f \"${SERVER_JARFILE}\" ] || [ ! -s \"${SERVER_JARFILE}\" ]; then\r\n    echo \"Aviso: No se detect\u00f3 un binario JAR remoto descargable.\"\r\n    echo \"Por favor sube tu JAR '${SERVER_JARFILE}' mediante SFTP a /mnt/server.\"\r\n    touch \"${SERVER_JARFILE}\"\r\nfi\r\n\r\n# 4. Aceptar EULA autom\u00e1ticamente\r\nif [ ! -f \"eula.txt\" ]; then\r\n    echo \"Configurando eula.txt (eula=true)...\"\r\n    echo \"eula=true\" > eula.txt\r\nfi\r\n\r\necho \"==========================================================\"\r\necho \" UniversePurpur instalado correctamente.\"\r\necho \" Configuraci\u00f3n de Puertos en Pterodactyl:\"\r\necho \"   1. Puerto Primario (Default): Minecraft Java (${SERVER_PORT:-25565})\"\r\necho \"   2. Puerto Adicional (Allocation): Web Panel & Portal (${WEB_PORT:-25566})\"\r\necho \"   3. Puerto Bedrock (Opcional): Geyser UDP (${GEYSER_PORT:-19132})\"\r\necho \"==========================================================\"",
             "container": "ghcr.io/pterodactyl/installers:debian",
             "entrypoint": "bash"
         }
@@ -62,7 +45,7 @@
         },
         {
             "name": "Web Panel & Portal Port",
-            "description": "Puerto secundario en el que se ejecuta el portal web público y el panel de administración (/admin). Recuerda asignar una asignación (Allocation) adicional en Pterodactyl.",
+            "description": "Puerto secundario en el que se ejecuta el portal web p\u00fablico y el panel de administraci\u00f3n (/admin). Recuerda asignar una asignaci\u00f3n (Allocation) adicional en Pterodactyl.",
             "env_variable": "WEB_PORT",
             "default_value": "25566",
             "user_viewable": true,
@@ -72,7 +55,7 @@
         },
         {
             "name": "Web Master Auth Token",
-            "description": "Token maestro para el acceso y autenticación en la interfaz administrativa y API web.",
+            "description": "Token maestro para el acceso y autenticaci\u00f3n en la interfaz administrativa y API web.",
             "env_variable": "WEB_AUTH_TOKEN",
             "default_value": "admin15k",
             "user_viewable": true,
@@ -82,23 +65,17 @@
         },
         {
             "name": "Universe Performance Profile",
-            "description": "Preset de rendimiento de UniversePurpur: ultra-low-ram-cpu (Mínimo consumo RAM/CPU para VPS/Budget), 15k-hyper-hub (Lobbies/Spawns masivos), 15k-mega-arena (Bedwars/Arenas), o 15k-scale-smp (Supervivencia/Skyblock).",
+            "description": "Preset de rendimiento de UniversePurpur: ultra-low-ram-cpu (M\u00ednimo consumo RAM/CPU para VPS/Budget), 15k-hyper-hub (Lobbies/Spawns masivos), 15k-mega-arena (Bedwars/Arenas), o 15k-scale-smp (Supervivencia/Skyblock).",
             "env_variable": "UNIVERSE_PROFILE",
-            "default_value": "15k-hyper-hub",
+            "default_value": "ultra-low-ram-cpu",
             "user_viewable": true,
             "user_editable": true,
             "rules": "required|string|in:ultra-low-ram-cpu,15k-hyper-hub,15k-mega-arena,15k-scale-smp",
-            "field_type": "select",
-            "field_options": [
-                "ultra-low-ram-cpu",
-                "15k-hyper-hub",
-                "15k-mega-arena",
-                "15k-scale-smp"
-            ]
+            "field_type": "text"
         },
         {
             "name": "JVM Flags (ZGC Generacional)",
-            "description": "Banderas avanzadas de la JVM optimizadas para latencia ultrabaja en Java 24 con Generational ZGC, deduplicación de cadenas y memoria pre-tocada.",
+            "description": "Banderas avanzadas de la JVM optimizadas para latencia ultrabaja en Java 24 con Generational ZGC, deduplicaci\u00f3n de cadenas y memoria pre-tocada.",
             "env_variable": "JVM_FLAGS",
             "default_value": "-XX:+UseZGC -XX:+ZGenerational -XX:+AlwaysPreTouch -XX:+UseNUMA -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -Dio.netty.allocator.type=pooled",
             "user_viewable": true,
@@ -108,7 +85,7 @@
         },
         {
             "name": "Download URL",
-            "description": "URL directa para descargar el binario JAR de UniversePurpur. Si está vacía, se intentará descargar del release más reciente de GitHub.",
+            "description": "URL directa para descargar el binario JAR de UniversePurpur. Si est\u00e1 vac\u00eda, se intentar\u00e1 descargar del release m\u00e1s reciente de GitHub.",
             "env_variable": "DOWNLOAD_URL",
             "default_value": "https://github.com/SrJayYT/UniversePurpur-/releases/latest/download/universepurpur.jar",
             "user_viewable": true,
