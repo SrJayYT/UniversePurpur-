@@ -60,13 +60,30 @@ Algoritmo de *Token Bucket* atómico basado en bucles CAS (`compareAndSet`):
 - Poda preventiva de cachés de mundos y chunks inactivos antes de que ocurran picos de parada de mundo (Stop-The-World).
 - Despacho seguro en el hilo principal cumpliendo con las restricciones de `AsyncCatcher` de Paper.
 
-### 💻 6. Panel Administrador Web Integrado (`UniverseWebPanel`)
-UniversePurpur incluye de forma nativa un servidor HTTP embebido de alto rendimiento (puerto predeterminado `25566`) con interfaz gráfica moderna y responsiva:
-- **Dashboard en Tiempo Real:** Monitor de TPS, MSPT, uso de RAM Heap, pausas de GC acumuladas y estado del governor.
-- **Gestión Total de Jugadores:** Visualiza todos los usuarios conectados, con opción de expulsar (**Kick**), suspender (**Ban**) o alternar permisos (**OP**) en 1 clic.
-- **Terminal de Consola Remota:** Envía y ejecuta cualquier comando de Minecraft (`/stop`, `/say`, `/give`, `/whitelist`, etc.) directamente desde el navegador sin necesidad de acceso SSH o panel externo.
-- **Control Rápido de Mitigación:** Alterna perfiles en caliente, dispara podas de memoria preventivas (`trim`) y limpia entidades acumuladas (`purge`).
-- **Seguridad Robusta:** Autenticación protegida por Bearer Token configurable en [`universe-purpur.yml`](universe-purpur.yml).
+### 💻 6. Portal Web Público y Centro de Control Admin (`UniverseWebPanel`)
+UniversePurpur incluye de forma nativa un servidor HTTP embebido de alto rendimiento (puerto predeterminado `25566`) con interfaz moderna de estética dark cosmic/cyberpunk:
+- **🌐 Portal Web Público (`/`):**
+  - Vista para jugadores con IP copiable al portapapeles en 1 clic.
+  - Telemetría en vivo: Conexiones activas, TPS, MSPT y estado del clúster.
+  - Formulario interactivo de **Vinculación de Cuentas de Discord** para jugadores.
+  - Enlace directo a la comunidad de Discord configurada.
+- **🛡️ Centro de Control Admin (`/admin`):**
+  - **Login Seguro & Roles:** Autenticación con contraseñas encriptadas con hash SHA-256 + salt y tokens de sesión de 7 días (`universe-users.json`). Roles de `SUPER_ADMIN` y `MODERATOR`.
+  - **Gestor Multi-Usuario:** Creación y revocación de cuentas administrativas directamente desde la interfaz web.
+  - **Personalizador Dinámico de Marca:** Edición en caliente del título del servidor, descripción, IP pública, logo URL, favicon URL y enlace de Discord con guardado automático en `universe-purpur.yml`.
+  - **Gestión Total de Jugadores:** Búsqueda en vivo de jugadores conectados, con acciones instantáneas de expulsar (**Kick**), suspender (**Ban**) o alternar permisos (**OP**) en 1 clic.
+  - **Terminal de Consola Remota:** Envía y ejecuta cualquier comando de Minecraft (`/stop`, `/say`, `/give`, `/whitelist`, etc.) directamente desde el navegador.
+  - **Mitigación y Telemetría en Vivo:** Monitoreo de TPS, MSPT, memoria RAM Heap, pausas de GC, chunks cacheados, cubos espaciales 2D y paquetes bloqueados por AntiCrash.
+  - **Servidor de Assets Locales (`/assets/*`):** Sirve banners y logos localmente sin depender de CDNs externas.
+
+### 🔗 7. Sistema de Vinculación de Cuentas Discord (`UniverseDiscordLinker`)
+- **Comando In-Game:** Los jugadores generan un código temporal de 6 dígitos mediante `/link` o `/vincular`.
+- **Verificación Web:** Ingresan su código en el portal web público (`/`) junto a su Discord Tag para completar el enlace.
+- **Persistencia Segura:** Las vinculaciones se almacenan permanentemente en `universe-discord-links.json`.
+- **API REST para Bots de Discord:**
+  - `GET /api/discord/lookup?discordId=<id>`: Busca el jugador de Minecraft vinculado a una ID de Discord.
+  - `GET /api/discord/lookup?player=<name>`: Busca los datos de Discord vinculados a un jugador.
+  - Permite a cualquier bot de Discord sincronizar roles, rangos y verificaciones automáticamente.
 
 ---
 
@@ -77,7 +94,7 @@ UniversePurpur requiere **2 puertos por defecto** (y un 3er puerto opcional si s
 | Puerto | Protocolo | Servicio | Descripción |
 | :---: | :---: | :--- | :--- |
 | **`25565`** | **TCP** | **Minecraft Java Server** | Puerto principal de conexión para clientes Java de Minecraft. |
-| **`25566`** | **TCP / HTTP** | **Web Admin Panel** | Panel web de control y monitoreo hosteado en el servidor (`http://<ip>:25566`). |
+| **`25566`** | **TCP / HTTP** | **Web Portal & Admin Panel** | Portal público (`/`) y panel admin (`/admin`) en `http://<ip>:25566`. |
 | **`19132`** | **UDP** | **Geyser Bedrock (Opcional)** | Puerto para compatibilidad crossplay con Minecraft Bedrock (móviles, consolas). |
 
 ## 🎯 Presets de Alto Rendimiento
@@ -92,8 +109,15 @@ En [`universe-purpur.yml`](universe-purpur.yml), UniversePurpur incluye perfiles
 
 ---
 
-## 🛠️ Comandos Administrativos
+## 🛠️ Comandos Administrativos y de Jugadores
 
+### Comandos del Servidor y Jugadores:
+```text
+/link (alias: /vincular, /discordlink)
+  Genera un código de un solo uso (UP-XXXXXX) válido por 5 minutos para vincular tu cuenta con Discord en el portal web.
+```
+
+### Comandos de Diagnóstico y Control Maestro:
 El comando maestro `/universespigot` (alias: `/uspigot`, `/universe`) proporciona control total:
 
 ```text
@@ -121,6 +145,7 @@ El comando maestro `/universespigot` (alias: `/uspigot`, `/universe`) proporcion
 /universespigot reload
   Recarga la configuración de universe-purpur.yml en memoria de forma segura.
 ```
+
 
 ---
 

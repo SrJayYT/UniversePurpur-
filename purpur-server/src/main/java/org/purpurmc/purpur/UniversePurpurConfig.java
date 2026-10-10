@@ -115,6 +115,14 @@ public final class UniversePurpurConfig {
     public static boolean webPanelAllowCommands = true;
     public static int geyserPort = 19132;
 
+    // --- Web Branding & Customization ---
+    public static String webServerTitle = "UniversePurpur Network";
+    public static String webServerDescription = "The Ultimate +15k Minecraft Server Network";
+    public static String webServerLogoUrl = "/assets/universepurpur_banner.png";
+    public static String webServerFaviconUrl = "https://purpurmc.org/favicon.ico";
+    public static String webServerIpAddress = "play.universenetwork.net";
+    public static String webDiscordInviteUrl = "https://discord.gg/universepurpur";
+
     private UniversePurpurConfig() {}
 
     public static void init(File serverRootDir) {
@@ -248,6 +256,33 @@ public final class UniversePurpurConfig {
         webPanelAuthToken = getString("global.web-panel.auth-token", webPanelAuthToken);
         webPanelAllowCommands = getBoolean("global.web-panel.allow-remote-commands", webPanelAllowCommands);
         geyserPort = getInt("global.geyser.bedrock-port", geyserPort);
+
+        // Web Branding Defaults
+        webServerTitle = getString("global.web-panel.branding.title", webServerTitle);
+        webServerDescription = getString("global.web-panel.branding.description", webServerDescription);
+        webServerLogoUrl = getString("global.web-panel.branding.logo-url", webServerLogoUrl);
+        webServerFaviconUrl = getString("global.web-panel.branding.favicon-url", webServerFaviconUrl);
+        webServerIpAddress = getString("global.web-panel.branding.server-ip", webServerIpAddress);
+        webDiscordInviteUrl = getString("global.web-panel.branding.discord-invite-url", webDiscordInviteUrl);
+    }
+
+    public static void updateBranding(String title, String desc, String logo, String favicon, String ip, String discord) {
+        if (title != null && !title.isEmpty()) webServerTitle = title;
+        if (desc != null && !desc.isEmpty()) webServerDescription = desc;
+        if (logo != null && !logo.isEmpty()) webServerLogoUrl = logo;
+        if (favicon != null && !favicon.isEmpty()) webServerFaviconUrl = favicon;
+        if (ip != null && !ip.isEmpty()) webServerIpAddress = ip;
+        if (discord != null && !discord.isEmpty()) webDiscordInviteUrl = discord;
+
+        if (config != null) {
+            config.set("global.web-panel.branding.title", webServerTitle);
+            config.set("global.web-panel.branding.description", webServerDescription);
+            config.set("global.web-panel.branding.logo-url", webServerLogoUrl);
+            config.set("global.web-panel.branding.favicon-url", webServerFaviconUrl);
+            config.set("global.web-panel.branding.server-ip", webServerIpAddress);
+            config.set("global.web-panel.branding.discord-invite-url", webDiscordInviteUrl);
+            save();
+        }
     }
 
     // --- Dynamic Governor Query Helpers ---

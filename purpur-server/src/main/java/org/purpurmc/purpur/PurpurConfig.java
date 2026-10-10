@@ -74,6 +74,7 @@ public class PurpurConfig {
         commands = new HashMap<>();
         commands.put("purpur", new PurpurCommand("purpur"));
         commands.put("universespigot", new org.purpurmc.purpur.command.UniverseSpigotCommand("universespigot"));
+        commands.put("link", new org.purpurmc.purpur.command.UniverseLinkCommand("link"));
 
         version = getInt("config-version", 48);
         set("config-version", 48);
