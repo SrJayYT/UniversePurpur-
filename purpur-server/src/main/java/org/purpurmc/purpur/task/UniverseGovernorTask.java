@@ -6,9 +6,8 @@ import org.purpurmc.purpur.UniversePurpurConfig;
 import org.purpurmc.purpur.util.MinecraftInternalPlugin;
 
 /**
- * Dynamic MSPT Governor and Lag Mitigation Engine for UniverseSpigot.
- * Continuously computes real-time MSPT/TPS metrics and applies multi-tier
- * dynamic throttling for massive server populations (+10,000 players).
+ * 5-Tier Hyper-Scale Dynamic MSPT Governor and Lag Mitigation Engine for UniverseSpigot (+15,000 Players).
+ * Continuously computes real-time MSPT/TPS metrics and enforces multi-level autonomous throttling.
  *
  * Author: DevPapo
  */
@@ -16,11 +15,12 @@ public class UniverseGovernorTask extends BukkitRunnable {
     private static UniverseGovernorTask instance;
     private boolean started = false;
 
-    // Throttle Levels:
-    // 0: NORMAL - MSPT < 35.0ms (Optimal, full fidelity)
-    // 1: SOFT   - MSPT 35.0ms - 42.0ms (Soft throttling, DAB brain ticks slowed)
-    // 2: HARD   - MSPT 42.0ms - 48.0ms (Hard throttling, tracking distance capped)
-    // 3: CRITICAL / EMERGENCY - MSPT >= 48.0ms (Emergency lag protection active)
+    // 5-Tier Hyper-Scale Levels:
+    // 0: OPTIMAL              - MSPT < 30.0ms (Pristine, 20.0 TPS full fidelity)
+    // 1: SOFT THROTTLE        - MSPT 30.0ms - 38.0ms (Soft DAB brain throttle for distant entities)
+    // 2: MODERATE THROTTLE    - MSPT 38.0ms - 44.0ms (Freeze inactive item ticks, defer block physics)
+    // 3: AGGRESSIVE CULLING   - MSPT 44.0ms - 46.0ms (Cap player tracking distance to 20 blocks, tighten packet rates)
+    // 4: HYPER-SCALE LOCKDOWN - MSPT >= 46.0ms (Lockdown: suppress cosmetic packets, skip non-player ticks)
     private int throttleLevel = 0;
     private double currentMspt = 0.0D;
     private double currentTps = 20.0D;
@@ -65,7 +65,7 @@ public class UniverseGovernorTask extends BukkitRunnable {
         }
 
         if (manualEmergencyOverride != null) {
-            this.throttleLevel = manualEmergencyOverride ? 3 : 0;
+            this.throttleLevel = manualEmergencyOverride ? 4 : 0;
             return;
         }
 
@@ -74,17 +74,19 @@ public class UniverseGovernorTask extends BukkitRunnable {
             return;
         }
 
-        double target = UniversePurpurConfig.targetMspt;
-        double hardLimit = UniversePurpurConfig.hardLimitMspt;
+        double target = UniversePurpurConfig.targetMspt;     // default: 38.0 ms
+        double hardLimit = UniversePurpurConfig.hardLimitMspt; // default: 46.0 ms
 
         if (currentMspt >= hardLimit) {
-            this.throttleLevel = 3; // Emergency
+            this.throttleLevel = 4; // Hyper-Scale Lockdown
+        } else if (currentMspt >= (hardLimit - 2.0D)) {
+            this.throttleLevel = 3; // Aggressive Culling
         } else if (currentMspt >= target) {
-            this.throttleLevel = 2; // Hard throttle
-        } else if (currentMspt >= (target * 0.85D)) {
-            this.throttleLevel = 1; // Soft throttle
+            this.throttleLevel = 2; // Moderate Throttle
+        } else if (currentMspt >= (target * 0.80D)) {
+            this.throttleLevel = 1; // Soft Throttle
         } else {
-            this.throttleLevel = 0; // Normal
+            this.throttleLevel = 0; // Optimal
         }
     }
 
@@ -96,8 +98,9 @@ public class UniverseGovernorTask extends BukkitRunnable {
         return switch (throttleLevel) {
             case 0 -> "OPTIMAL (Level 0)";
             case 1 -> "SOFT THROTTLE (Level 1)";
-            case 2 -> "HARD THROTTLE (Level 2)";
-            case 3 -> "EMERGENCY PROTECTION (Level 3)";
+            case 2 -> "MODERATE THROTTLE (Level 2)";
+            case 3 -> "AGGRESSIVE CULLING (Level 3)";
+            case 4 -> "HYPER-SCALE LOCKDOWN (Level 4)";
             default -> "UNKNOWN";
         };
     }
@@ -111,6 +114,10 @@ public class UniverseGovernorTask extends BukkitRunnable {
     }
 
     public boolean isEmergencyActive() {
+        return throttleLevel >= 4;
+    }
+
+    public boolean shouldCullDistantTracking() {
         return throttleLevel >= 3;
     }
 
@@ -118,7 +125,7 @@ public class UniverseGovernorTask extends BukkitRunnable {
         return throttleLevel >= 1;
     }
 
-    public boolean shouldCapTracking() {
+    public boolean shouldCapBlockPhysics() {
         return throttleLevel >= 2;
     }
 

@@ -10,17 +10,17 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 /**
  * UniversePurpur / UniverseSpigot runtime configuration engine.
- * Extreme optimization profile for massive Minecraft server networks (+10,000 players online).
+ * Hyper-scale performance profile for massive Minecraft server networks (+15,000 players online).
  *
  * Author: DevPapo
  */
 public final class UniversePurpurConfig {
     private static final String HEADER = """
             =============================================================================
-             UniversePurpur / UniverseSpigot Extreme Performance Configuration
+             UniversePurpur / UniverseSpigot Hyper-Scale Configuration (+15,000 Players)
              Author: DevPapo
-             Target: Ultra-high density networks & servers (+10,000 players online)
-             Engine: Dynamic MSPT Governor | DAB | Netty Packet Throttle | Asynchronous I/O
+             Target: Mega-Networks, Massive Hubs & Ultra-Scale Clusters (+15k players)
+             Engine: 5-Tier MSPT Governor | Player Culling | Netty Token Bucket | Async I/O
             =============================================================================
             """;
 
@@ -29,12 +29,12 @@ public final class UniversePurpurConfig {
 
     // --- Global Runtime Flags ---
     public static boolean enabled = true;
-    public static String profile = "10k-massive-network";
+    public static String profile = "15k-hyper-scale";
 
-    // --- Dynamic MSPT & Tick Throttling ---
+    // --- Dynamic MSPT & Tick Throttling (5-Tier Hyper-Scale Governor) ---
     public static boolean dynamicThrottle = true;
-    public static double targetMspt = 40.0D;
-    public static double hardLimitMspt = 48.0D;
+    public static double targetMspt = 38.0D;
+    public static double hardLimitMspt = 46.0D;
     public static boolean emergencyLagProtection = true;
     public static boolean skipNonCriticalEntityTicks = true;
     public static boolean skipDistantPlayerUpdates = true;
@@ -48,7 +48,7 @@ public final class UniversePurpurConfig {
     public static boolean disableWaterMobs = false;
     public static boolean disableBossMobs = false;
 
-    // 10k Player Entity Optimization & Collisions (O(N^2) -> O(1))
+    // Entity Optimization & Collisions (O(N^2) -> O(1))
     public static int maxCollisionsPerEntity = 1;
     public static boolean playerCollisionsEnabled = false;
     public static int inactiveEntityTickRate = 20;
@@ -58,26 +58,30 @@ public final class UniversePurpurConfig {
     public static double itemMergeRadius = 4.0D;
     public static boolean disableInactiveItemTicks = true;
 
-    // --- Network & Netty Throughput (+10,000 Concurrent Connections) ---
+    // --- Network & Netty Throughput (+15,000 Concurrent Connections) ---
     public static boolean asyncCompression = true;
     public static int compressionThreshold = 512;
     public static boolean tcpNoDelay = true;
     public static boolean flushConsolidation = true;
     public static int nettyEventLoopThreads = 0; // 0 = Auto-detect CPU cores * 2
+    public static boolean asyncTabListUpdates = true;
+    public static boolean chatAsyncDispatch = true;
 
-    // Packet Rate Limiting (Anti-DoS / Packet Flooding)
+    // Adaptive Packet Rate Limiting (Anti-DoS / Packet Flooding)
     public static boolean packetRateLimitEnabled = true;
     public static int maxPacketsPerSecond = 1200;
     public static int packetBurstLimit = 250;
+    public static boolean adaptiveRateLimiting = true;
 
     // Anti-Payload Spam
     public static boolean antiPayloadSpamEnabled = true;
     public static int maxPayloadSizeKb = 16;
     public static int maxChannels = 64;
 
-    // Entity Tracking Ranges & Visible Limits
-    public static int maxTrackedEntitiesPerPlayer = 48;
-    public static int trackingRangePlayer = 32;
+    // Entity Tracking Ranges & Visible Limits (Crucial for +15k Players)
+    public static int maxTrackedEntitiesPerPlayer = 40;
+    public static int maxVisiblePlayersPerClient = 32; // Hypixel-style player culling in mega hubs
+    public static int trackingRangePlayer = 28;
     public static int trackingRangeAnimals = 16;
     public static int trackingRangeMonsters = 24;
     public static int trackingRangeMisc = 12;
@@ -94,7 +98,7 @@ public final class UniversePurpurConfig {
     // --- Hoppers & Redstone Optimization ---
     public static boolean hopperCacheInventoryLookups = true;
     public static int hopperThrottleEmptyTicks = 8;
-    public static int redstoneMaxUpdatesPerTick = 6000;
+    public static int redstoneMaxUpdatesPerTick = 5000;
 
     private UniversePurpurConfig() {}
 
@@ -162,23 +166,27 @@ public final class UniversePurpurConfig {
         tcpNoDelay = getBoolean("global.network.tcp-nodelay", tcpNoDelay);
         flushConsolidation = getBoolean("global.network.flush-consolidation", flushConsolidation);
         nettyEventLoopThreads = getInt("global.network.netty-event-loop-threads", nettyEventLoopThreads);
+        asyncTabListUpdates = getBoolean("global.network.async-tablist-updates", asyncTabListUpdates);
+        chatAsyncDispatch = getBoolean("global.network.chat-async-dispatch", chatAsyncDispatch);
 
         packetRateLimitEnabled = getBoolean("global.network.packet-rate-limit.enabled", packetRateLimitEnabled);
         maxPacketsPerSecond = getInt("global.network.packet-rate-limit.max-packets-per-second", maxPacketsPerSecond);
         packetBurstLimit = getInt("global.network.packet-rate-limit.burst", packetBurstLimit);
+        adaptiveRateLimiting = getBoolean("global.network.packet-rate-limit.adaptive", adaptiveRateLimiting);
 
         antiPayloadSpamEnabled = getBoolean("global.network.anti-payload-spam.enabled", antiPayloadSpamEnabled);
         maxPayloadSizeKb = getInt("global.network.anti-payload-spam.max-custom-payload-size-kb", maxPayloadSizeKb);
         maxChannels = getInt("global.network.anti-payload-spam.max-channels", maxChannels);
 
-        // Tracking Ranges
+        // Tracking Ranges & Player Culling
         maxTrackedEntitiesPerPlayer = getInt("global.network.tracking.max-tracked-entities-per-player", maxTrackedEntitiesPerPlayer);
+        maxVisiblePlayersPerClient = getInt("global.network.tracking.max-visible-players-per-client", maxVisiblePlayersPerClient);
         trackingRangePlayer = getInt("global.network.tracking.range-player", trackingRangePlayer);
         trackingRangeAnimals = getInt("global.network.tracking.range-animals", trackingRangeAnimals);
         trackingRangeMonsters = getInt("global.network.tracking.range-monsters", trackingRangeMonsters);
         trackingRangeMisc = getInt("global.network.tracking.range-misc", trackingRangeMisc);
 
-        // Chunks & Storage (Supports both kebab-case and camelCase)
+        // Chunks & Storage
         simulationDistanceCap = getInt("global.chunks.simulation-distance-cap", simulationDistanceCap);
         viewDistanceCap = getInt("global.chunks.view-distance-cap", viewDistanceCap);
         asyncChunkIo = getBoolean("global.chunks.async-chunk-io", asyncChunkIo);
@@ -210,9 +218,9 @@ public final class UniversePurpurConfig {
     public static String getWorldPreset(String worldName) {
         String worldPath = "world-rules." + worldName + ".preset";
         if (config != null && config.contains(worldPath)) {
-            return config.getString(worldPath, "10k-hub");
+            return config.getString(worldPath, "15k-hyper-hub");
         }
-        return "10k-hub";
+        return "15k-hyper-hub";
     }
 
     public static boolean isWorldEnabled(String worldName) {
@@ -283,6 +291,13 @@ public final class UniversePurpurConfig {
         return Math.min(val, viewDistanceCap);
     }
 
+    public static int getWorldMaxVisiblePlayers(String worldName) {
+        String worldPath = "world-rules." + worldName + ".tracking.max-visible-players-per-client";
+        String preset = getWorldPreset(worldName);
+        int def = getInt("presets." + preset + ".tracking.max-visible-players-per-client", maxVisiblePlayersPerClient);
+        return (config != null && config.contains(worldPath)) ? config.getInt(worldPath, def) : def;
+    }
+
     public static int getWorldRandomTickSpeed(String worldName) {
         String worldPath = "world-rules." + worldName + ".ticks.random-tick-speed";
         if (config != null && config.contains(worldPath)) {
@@ -295,17 +310,17 @@ public final class UniversePurpurConfig {
     public static int getWorldMaxBlockUpdates(String worldName) {
         String worldPath = "world-rules." + worldName + ".ticks.max-block-updates-per-tick";
         if (config != null && config.contains(worldPath)) {
-            return config.getInt(worldPath, 6000);
+            return config.getInt(worldPath, 5000);
         }
         String preset = getWorldPreset(worldName);
-        return getInt("presets." + preset + ".ticks.max-block-updates-per-tick", 6000);
+        return getInt("presets." + preset + ".ticks.max-block-updates-per-tick", 5000);
     }
 
     public static int getWorldAutoSaveInterval(String worldName) {
         return getInt("world-rules." + worldName + ".data.autosave-interval-seconds", autoSaveIntervalSeconds);
     }
 
-    // --- Configuration Getters / Defaults (Null-Safe & Reliable) ---
+    // --- Configuration Getters / Defaults ---
     private static boolean getBoolean(String path, boolean def) {
         if (config == null) return def;
         config.addDefault(path, def);

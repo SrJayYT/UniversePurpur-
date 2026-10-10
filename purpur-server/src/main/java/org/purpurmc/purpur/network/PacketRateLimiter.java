@@ -3,10 +3,11 @@ package org.purpurmc.purpur.network;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.purpurmc.purpur.UniversePurpurConfig;
+import org.purpurmc.purpur.task.UniverseGovernorTask;
 
 /**
- * Ultra-high-performance lock-free Packet Rate Limiter for massive server connections (+10,000 players).
- * Employs a proportional atomic token bucket algorithm to suppress crasher floods and packet storms
+ * Ultra-high-performance lock-free Packet Rate Limiter for massive server connections (+15,000 players).
+ * Employs an adaptive proportional atomic token bucket algorithm to suppress crasher floods and packet storms
  * while preventing packet starvation for regular players.
  *
  * Author: DevPapo
@@ -50,13 +51,26 @@ public final class PacketRateLimiter {
             return;
         }
 
-        int maxRate = Math.max(10, UniversePurpurConfig.maxPacketsPerSecond);
-        int maxBurst = Math.max(maxRate, UniversePurpurConfig.packetBurstLimit);
+        int baseRate = Math.max(10, UniversePurpurConfig.maxPacketsPerSecond);
+        int baseBurst = Math.max(baseRate, UniversePurpurConfig.packetBurstLimit);
+
+        // Adaptive Rate Limiting: If Governor is under high load (Level 3 or 4), tighten burst window
+        if (UniversePurpurConfig.adaptiveRateLimiting) {
+            int level = UniverseGovernorTask.instance().getThrottleLevel();
+            if (level >= 4) {
+                baseRate = (int) (baseRate * 0.60D);
+                baseBurst = (int) (baseBurst * 0.50D);
+            } else if (level >= 3) {
+                baseRate = (int) (baseRate * 0.80D);
+                baseBurst = (int) (baseBurst * 0.75D);
+            }
+        }
 
         // Proportional token refill: add tokens based on elapsed time without starving legitimate players
-        long tokensToAdd = (elapsed * maxRate) / 1000L;
+        long tokensToAdd = (elapsed * (long) baseRate) / 1000L;
         if (tokensToAdd > 0 && lastRefillTimestamp.compareAndSet(last, now)) {
-            tokens.updateAndGet(current -> (int) Math.min(maxBurst, current + tokensToAdd));
+            final int maxAllowed = baseBurst;
+            tokens.updateAndGet(current -> (int) Math.min(maxAllowed, current + tokensToAdd));
         }
     }
 

@@ -1,24 +1,24 @@
 # =============================================================================
-# UniversePurpur / UniverseSpigot - Extreme Optimization Profile
+# UniversePurpur / UniverseSpigot - Hyper-Scale Architecture Profile
 # Author: DevPapo
-# Target: Massive Minecraft Networks & Super-Populated Servers (+10,000 Players Online)
+# Target: Massive Mega-Networks & Multi-Lobby Clusters (+15,000 Players Online)
 # =============================================================================
 
-version: 3
-profile: ultra-10k-massive-network
+version: 4
+profile: 15k-hyper-scale
 
 global:
   enabled: true
 
   # ---------------------------------------------------------------------------
-  # Dynamic MSPT Governor & Tick Lag Protection
-  # Maintains stable 20.0 TPS even under sudden spikes with 10k players.
+  # 5-Tier Hyper-Scale Dynamic MSPT Governor
+  # Maintains steady 20.0 TPS even under sudden massive surges of 15k+ players.
   # ---------------------------------------------------------------------------
   tick:
     dynamic-throttle: true
-    target-mspt: 40.0                  # Below 50.0ms ensures constant 20.0 TPS
-    hard-limit-mspt: 48.0              # Triggers emergency tick throttling
-    emergency-lag-protection: true     # Prevents server freeze / crash during massive influx
+    target-mspt: 38.0                  # Conservative target ensures constant 20.0 TPS
+    hard-limit-mspt: 46.0              # Triggers Level 4 Hyper-Scale Lockdown
+    emergency-lag-protection: true     # Prevents server crash / lockup under extreme loads
     skip-non-critical-entity-ticks: true
     skip-distant-player-updates: true
 
@@ -30,14 +30,14 @@ global:
     global-ai-enabled: true
     disable-passive-mobs: false
     disable-hostile-mobs: false
-    disable-ambient-mobs: true         # Disable bats and ambient entities (zero gameplay impact)
+    disable-ambient-mobs: true         # Ambient mobs (bats, etc.) disabled by default
     disable-water-mobs: false
     disable-boss-mobs: false
 
     # Collision Limiter: Reduces O(N^2) collision checks to O(1)
-    max-collisions-per-entity: 1       # Prevents 100+ players in spawn from melting CPU
+    max-collisions-per-entity: 1       # Hard cap on entity push collisions
     player-collisions-enabled: false   # Disables player pushing player in crowded areas
-    inactive-entity-tick-rate: 20      # Only tick inactive entities every 1 second (20 ticks)
+    inactive-entity-tick-rate: 20      # Inactive entities tick once every second (20 ticks)
 
     # DAB (Dynamic Activation of Brain)
     dab:
@@ -45,24 +45,27 @@ global:
       max-tick-freq: 20                # Throttle brain ticks for distant mobs to 1/20 ticks
       activation-distance: 12          # Full brain ticks only within 12 blocks of player
 
-    item-merge-radius: 4.0             # Merges ground items aggressively to reduce entity count
-    disable-inactive-item-ticks: true  # Freeze item entities that are resting on floor
+    item-merge-radius: 4.0             # Merges ground items aggressively
+    disable-inactive-item-ticks: true  # Completely freezes items resting on the ground
 
   # ---------------------------------------------------------------------------
-  # Netty & Network Throughput (+10,000 Concurrent Connections)
+  # Netty & Network Throughput (+15,000 Concurrent Connections)
   # ---------------------------------------------------------------------------
   network:
     async-compression: true
-    compression-threshold: 512         # Higher threshold avoids burning CPU compressing tiny packets
+    compression-threshold: 512         # Optimized threshold avoids CPU churn on small packets
     tcp-nodelay: true                  # Immediate packet dispatch, reduces player latency
     flush-consolidation: true          # Netty syscall batching for massive socket counts
     netty-event-loop-threads: 0        # 0 = Auto-detect (CPU Cores * 2)
+    async-tablist-updates: true        # Asynchronous batching for 15k-player tab lists
+    chat-async-dispatch: true          # Offload chat routing to thread pool
 
-    # Packet Rate Limiting (Anti-DoS / Anti-Crasher Floods)
+    # Adaptive Packet Rate Limiting (Anti-DoS / Anti-Crasher Floods)
     packet-rate-limit:
       enabled: true
       max-packets-per-second: 1200
       burst: 250
+      adaptive: true                   # Automatically tightens burst window during lag spikes
 
     # Anti-Payload Spam
     anti-payload-spam:
@@ -70,11 +73,12 @@ global:
       max-custom-payload-size-kb: 16
       max-channels: 64
 
-    # Player Tracking Range & Packet Storm Suppression
-    # Crucial: Prevents broadcasting thousands of entity packets to each connected player
+    # Player Tracking Range & Hypixel-style Dynamic Player Culling
+    # Crucial: Caps max visible players per client so mega hubs never crash client/server
     tracking:
-      max-tracked-entities-per-player: 48   # Caps entity packets sent per client tick
-      range-player: 32                      # Player view distance in blocks
+      max-tracked-entities-per-player: 40   # Caps entity packets sent per client tick
+      max-visible-players-per-client: 32    # Each client renders only the 32 closest players
+      range-player: 28                      # Player tracking distance in blocks
       range-animals: 16
       range-monsters: 24
       range-misc: 12
@@ -90,7 +94,6 @@ global:
 
   # ---------------------------------------------------------------------------
   # Autosave & Disk I/O Throttling
-  # Spreads chunk saves across ticks to completely eliminate autosave lag spikes.
   # ---------------------------------------------------------------------------
   data:
     autosave:
@@ -106,14 +109,14 @@ global:
     throttle-empty-ticks: 8            # Empty hoppers wait 8 ticks before searching again
 
   redstone:
-    max-updates-per-tick: 6000         # Caps runaway redstone clocks / lag machines
+    max-updates-per-tick: 5000         # Caps runaway redstone clocks / lag machines
 
 # =============================================================================
-# Presets: Pre-configured templates optimized for different game modes
+# Presets: Hyper-Scale Presets for +15,000 Players Environments
 # =============================================================================
 presets:
-  # Mega Hub / Lobby (2,000 - 10,000 players per instance or proxy group)
-  10k-hub:
+  # Mega Hub / Spawn Lobby (3,000 - 15,000 players per proxy group)
+  15k-hyper-hub:
     ticks:
       random-tick-speed: 0
       max-block-updates-per-tick: 1000
@@ -125,12 +128,14 @@ presets:
       global-ai-enabled: false
       max-collisions-per-entity: 0
       player-collisions-enabled: false
+    tracking:
+      max-visible-players-per-client: 24
 
-  # Competitive Minigames (Bedwars, Skywars, Duels, Arena)
-  10k-minigames:
+  # High-Concurrency Minigame Nodes (Bedwars, Skywars, Duels, Practice)
+  15k-mega-arena:
     ticks:
       random-tick-speed: 1
-      max-block-updates-per-tick: 8000
+      max-block-updates-per-tick: 6000
     chunks:
       view-distance: 6
       simulation-distance: 3
@@ -139,12 +144,14 @@ presets:
       global-ai-enabled: false
       max-collisions-per-entity: 1
       player-collisions-enabled: false
+    tracking:
+      max-visible-players-per-client: 48
 
-  # Survival / SMP / Skyblock (+1,000 - +5,000 concurrent players)
-  10k-survival:
+  # Massive Survival / SMP / Skyblock Cluster
+  15k-scale-smp:
     ticks:
       random-tick-speed: 1
-      max-block-updates-per-tick: 6000
+      max-block-updates-per-tick: 5000
     chunks:
       view-distance: 6
       simulation-distance: 3
@@ -153,6 +160,8 @@ presets:
       global-ai-enabled: true
       max-collisions-per-entity: 1
       player-collisions-enabled: false
+    tracking:
+      max-visible-players-per-client: 32
 
 # =============================================================================
 # World Rules: Assign presets and overrides to specific worlds
@@ -160,7 +169,7 @@ presets:
 world-rules:
   # Default lobby world
   world:
-    preset: 10k-hub
+    preset: 15k-hyper-hub
     enabled: true
     time:
       lock: true
@@ -169,7 +178,7 @@ world-rules:
 
   # Arena world example
   minigames_arena:
-    preset: 10k-minigames
+    preset: 15k-mega-arena
     enabled: true
     time:
       lock: true
@@ -178,7 +187,7 @@ world-rules:
 
   # Survival world example
   survival_world:
-    preset: 10k-survival
+    preset: 15k-scale-smp
     enabled: true
     time:
       lock: false

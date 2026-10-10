@@ -43,7 +43,7 @@ public class UniverseSpigotCommand extends Command {
                     .collect(Collectors.toList());
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("profile")) {
-            return Stream.of("10k-hub", "10k-minigames", "10k-survival")
+            return Stream.of("15k-hyper-hub", "15k-mega-arena", "15k-scale-smp", "10k-hub", "10k-minigames", "10k-survival")
                     .filter(arg -> arg.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
         }
@@ -168,7 +168,7 @@ public class UniverseSpigotCommand extends Command {
         int totalLoadedChunks = Bukkit.getWorlds().stream().mapToInt(w -> w.getLoadedChunks().length).sum();
 
         sender.sendMessage(Component.text("========================================", NamedTextColor.DARK_GRAY));
-        sender.sendMessage(Component.text(" UniverseSpigot 10k Engine Dashboard ", NamedTextColor.GOLD, TextDecoration.BOLD)
+        sender.sendMessage(Component.text(" UniverseSpigot 15k Hyper-Scale Dashboard ", NamedTextColor.GOLD, TextDecoration.BOLD)
                 .append(Component.text("(by DevPapo)", NamedTextColor.DARK_GRAY)));
         sender.sendMessage(Component.text("========================================", NamedTextColor.DARK_GRAY));
 
@@ -192,13 +192,18 @@ public class UniverseSpigotCommand extends Command {
                 .append(Component.text(usedMb + " MB", NamedTextColor.WHITE))
                 .append(Component.text(" / " + maxMb + " MB (Allocated: " + totalMb + " MB)", NamedTextColor.DARK_GRAY)));
 
+        sender.sendMessage(Component.text("• Player Culling: ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.maxVisiblePlayersPerClient + " players/client", NamedTextColor.WHITE))
+                .append(Component.text(" | Range: ", NamedTextColor.GRAY))
+                .append(Component.text(UniversePurpurConfig.trackingRangePlayer + "m", NamedTextColor.WHITE)));
+
         sender.sendMessage(Component.text("• Collisions Cap: ", NamedTextColor.GRAY)
                 .append(Component.text(UniversePurpurConfig.maxCollisionsPerEntity, NamedTextColor.WHITE))
                 .append(Component.text(" | Player Collisions: ", NamedTextColor.GRAY))
                 .append(Component.text(UniversePurpurConfig.playerCollisionsEnabled ? "ON" : "OFF", UniversePurpurConfig.playerCollisionsEnabled ? NamedTextColor.YELLOW : NamedTextColor.GREEN)));
 
-        sender.sendMessage(Component.text("• Netty Rate Limiter: ", NamedTextColor.GRAY)
-                .append(Component.text(UniversePurpurConfig.packetRateLimitEnabled ? (UniversePurpurConfig.maxPacketsPerSecond + " pps (burst " + UniversePurpurConfig.packetBurstLimit + ")") : "DISABLED", NamedTextColor.GREEN)));
+        sender.sendMessage(Component.text("• Netty Limiter: ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.packetRateLimitEnabled ? (UniversePurpurConfig.maxPacketsPerSecond + " pps" + (UniversePurpurConfig.adaptiveRateLimiting ? " [ADAPTIVE]" : "")) : "DISABLED", NamedTextColor.GREEN)));
 
         sender.sendMessage(Component.text("========================================", NamedTextColor.DARK_GRAY));
     }
