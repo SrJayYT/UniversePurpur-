@@ -137,9 +137,35 @@ public final class UniverseMemoryGovernor implements Runnable {
                         if (world.unloadChunk(chunk)) {
                             freedChunks++;
                         }
+                    } else if (UniversePurpurConfig.aggressiveMemorySaver && !chunk.isEntitiesLoaded()) {
+                        boolean hasNearbyPlayer = false;
+                        int cx = (chunk.getX() << 4) + 8;
+                        int cz = (chunk.getZ() << 4) + 8;
+                        for (org.bukkit.entity.Player p : world.getPlayers()) {
+                            org.bukkit.Location pLoc = p.getLocation();
+                            double dx = pLoc.getX() - cx;
+                            double dz = pLoc.getZ() - cz;
+                            if ((dx * dx + dz * dz) <= (64.0D * 64.0D)) {
+                                hasNearbyPlayer = true;
+                                break;
+                            }
+                        }
+                        if (!hasNearbyPlayer) {
+                            if (world.unloadChunk(chunk)) {
+                                freedChunks++;
+                            }
+                        }
                     }
                 }
             }
+
+            // Prune expired codes & web sessions to minimize JVM Heap footprint
+            try {
+                org.purpurmc.purpur.web.UniverseDiscordLinker.instance().cleanExpiredCodes();
+                org.purpurmc.purpur.web.UniverseUserManager.instance().cleanExpiredSessions();
+            } catch (Throwable ignore) {
+            }
+
             // Explicit concurrent GC invitation to JVM runtime
             System.gc();
         } catch (Throwable ignore) {
@@ -147,6 +173,7 @@ public final class UniverseMemoryGovernor implements Runnable {
 
         return freedChunks;
     }
+
 
 
     public double getHeapUsedMb() {

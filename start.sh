@@ -4,8 +4,11 @@
 #  Author: DevPapo
 # ===============================================================================
 
-MIN_RAM="32G"
-MAX_RAM="48G"
+# Java Heap Settings:
+# - For Ultra-Low RAM (Budget VPS / Low spec nodes): MIN_RAM="2G", MAX_RAM="4G"
+# - For +15k players: MIN_RAM="32G", MAX_RAM="48G"
+MIN_RAM="2G"
+MAX_RAM="4G"
 
 # Locate executable JAR
 JAR_FILE="universepurpur.jar"

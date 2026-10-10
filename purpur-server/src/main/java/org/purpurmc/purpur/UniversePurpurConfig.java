@@ -164,8 +164,30 @@ public final class UniversePurpurConfig {
         init(serverRootDir != null ? serverRootDir : SERVER_ROOT_DIR);
     }
 
+    public static boolean aggressiveMemorySaver = true;
+
     public static void setProfile(String newProfile) {
         profile = newProfile;
+        if (newProfile != null && newProfile.equalsIgnoreCase("ultra-low-ram-cpu")) {
+            simulationDistanceCap = 2;
+            viewDistanceCap = 4;
+            maxVisiblePlayersPerClient = 16;
+            maxCollisionsPerEntity = 0;
+            playerCollisionsEnabled = false;
+            hopperThrottleEmptyTicks = 16;
+            dabActivationDistance = 8;
+            dabMaxTickFreq = 40;
+            memoryTrimThresholdPercent = 70.0D;
+            maxAutoSaveChunksPerTick = 2;
+            itemMergeRadius = 5.0D;
+            aggressiveMemorySaver = true;
+        } else if (newProfile != null && newProfile.equalsIgnoreCase("15k-hyper-hub")) {
+            simulationDistanceCap = 2;
+            viewDistanceCap = 6;
+            maxVisiblePlayersPerClient = 24;
+            maxCollisionsPerEntity = 0;
+            playerCollisionsEnabled = false;
+        }
         if (config != null) {
             config.set("profile", newProfile);
             save();
@@ -175,6 +197,7 @@ public final class UniversePurpurConfig {
     private static void readDefaultsAndValues() {
         enabled = getBoolean("global.enabled", enabled);
         profile = getString("profile", profile);
+
 
         // Dynamic Tick Governor
         dynamicThrottle = getBoolean("global.tick.dynamic-throttle", dynamicThrottle);
@@ -247,7 +270,9 @@ public final class UniversePurpurConfig {
         spatialGridEnabled = getBoolean("global.performance.spatial-grid-enabled", spatialGridEnabled);
         memoryAutoTrimEnabled = getBoolean("global.performance.memory-auto-trim.enabled", memoryAutoTrimEnabled);
         memoryTrimThresholdPercent = getDouble("global.performance.memory-auto-trim.threshold-percent", memoryTrimThresholdPercent);
+        aggressiveMemorySaver = getBoolean("global.performance.aggressive-memory-saver", aggressiveMemorySaver);
         antiCrashShieldEnabled = getBoolean("global.security.anti-crash-shield.enabled", antiCrashShieldEnabled);
+
 
         // Web Admin Panel & Port Infrastructure (2 Ports Default, 3 if Geyser)
         webPanelEnabled = getBoolean("global.web-panel.enabled", webPanelEnabled);

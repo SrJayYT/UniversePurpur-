@@ -48,8 +48,8 @@ public final class UniverseWebPanel {
     private static final MinecraftInternalPlugin PLUGIN = new MinecraftInternalPlugin();
 
     private HttpServer server;
-    private BukkitTask chunkMetricsTask;
-    private volatile int cachedLoadedChunks = 0;
+    private final java.util.concurrent.atomic.AtomicInteger cachedLoadedChunks = new java.util.concurrent.atomic.AtomicInteger(0);
+    private org.bukkit.event.Listener chunkListener;
     private boolean running = false;
 
     private UniverseWebPanel() {}
@@ -86,17 +86,32 @@ public final class UniverseWebPanel {
             server.start();
             running = true;
 
-            // Periodically refresh loaded chunk count safely on the primary server thread
-            chunkMetricsTask = Bukkit.getScheduler().runTaskTimer(PLUGIN, () -> {
+            // Zero-CPU Event-Driven Chunk Counter (Eliminates recurring Chunk[] polling allocations)
+            Bukkit.getScheduler().runTask(PLUGIN, () -> {
                 try {
                     int count = 0;
                     for (World w : Bukkit.getWorlds()) {
                         count += w.getLoadedChunks().length;
                     }
-                    cachedLoadedChunks = count;
+                    cachedLoadedChunks.set(count);
                 } catch (Throwable ignore) {
                 }
-            }, 20L, 60L);
+            });
+
+            if (chunkListener == null) {
+                chunkListener = new org.bukkit.event.Listener() {
+                    @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.MONITOR, ignoreCancelled = true)
+                    public void onChunkLoad(org.bukkit.event.world.ChunkLoadEvent event) {
+                        cachedLoadedChunks.incrementAndGet();
+                    }
+
+                    @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.MONITOR, ignoreCancelled = true)
+                    public void onChunkUnload(org.bukkit.event.world.ChunkUnloadEvent event) {
+                        cachedLoadedChunks.updateAndGet(c -> Math.max(0, c - 1));
+                    }
+                };
+                Bukkit.getPluginManager().registerEvents(chunkListener, PLUGIN);
+            }
 
             Bukkit.getLogger().info(String.format(
                     "\u001B[32m[UniversePurpur] Web Server online: Public Portal at http://%s:%d | Admin Panel at http://%s:%d/admin\u001B[0m",
@@ -117,12 +132,12 @@ public final class UniverseWebPanel {
             }
             server = null;
         }
-        if (chunkMetricsTask != null) {
+        if (chunkListener != null) {
             try {
-                chunkMetricsTask.cancel();
+                org.bukkit.event.HandlerList.unregisterAll(chunkListener);
             } catch (Throwable ignore) {
             }
-            chunkMetricsTask = null;
+            chunkListener = null;
         }
         running = false;
     }
@@ -132,8 +147,9 @@ public final class UniverseWebPanel {
     }
 
     public int getCachedLoadedChunks() {
-        return cachedLoadedChunks;
+        return Math.max(0, cachedLoadedChunks.get());
     }
+
 
 
     private static UniverseUserManager.Session getSession(HttpExchange exchange) {
@@ -485,7 +501,7 @@ public final class UniverseWebPanel {
 
         int onlinePlayers = Bukkit.getOnlinePlayers().size();
         int maxPlayers = Bukkit.getMaxPlayers();
-        int chunks = cachedLoadedChunks;
+        int chunks = getCachedLoadedChunks();
 
         String json = String.format(Locale.ROOT, """
                 {

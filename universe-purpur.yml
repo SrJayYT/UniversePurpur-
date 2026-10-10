@@ -119,6 +119,8 @@ global:
     memory-auto-trim:
       enabled: true                    # Auto-cleans stale caches before Stop-The-World GC spikes
       threshold-percent: 85.0          # Triggers pruning if heap usage exceeds 85%
+    aggressive-memory-saver: true      # Cleans expired sessions, codes, and unloads distant playerless chunks
+
 
   # ---------------------------------------------------------------------------
   # Enterprise Exploit & Anti-Crasher Shield
@@ -150,6 +152,22 @@ global:
 # Presets: Hyper-Scale Presets for +15,000 Players Environments
 # =============================================================================
 presets:
+  # Ultra-Low RAM & CPU Profile (Rock-Bottom Resource Footprint for Budget Nodes & VPS)
+  ultra-low-ram-cpu:
+    ticks:
+      random-tick-speed: 0
+      max-block-updates-per-tick: 500
+    chunks:
+      view-distance: 4
+      simulation-distance: 2
+    mobs:
+      global-spawning-enabled: false
+      global-ai-enabled: false
+      max-collisions-per-entity: 0
+      player-collisions-enabled: false
+    tracking:
+      max-visible-players-per-client: 16
+
   # Mega Hub / Spawn Lobby (3,000 - 15,000 players per proxy group)
   15k-hyper-hub:
     ticks:
@@ -165,6 +183,7 @@ presets:
       player-collisions-enabled: false
     tracking:
       max-visible-players-per-client: 24
+
 
   # High-Concurrency Minigame Nodes (Bedwars, Skywars, Duels, Practice)
   15k-mega-arena:

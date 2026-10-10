@@ -82,14 +82,15 @@
         },
         {
             "name": "Universe Performance Profile",
-            "description": "Preset de rendimiento de UniversePurpur: 15k-hyper-hub (Lobbies/Spawns masivos), 15k-mega-arena (Bedwars/Arenas), o 15k-scale-smp (Supervivencia/Skyblock).",
+            "description": "Preset de rendimiento de UniversePurpur: ultra-low-ram-cpu (Mínimo consumo RAM/CPU para VPS/Budget), 15k-hyper-hub (Lobbies/Spawns masivos), 15k-mega-arena (Bedwars/Arenas), o 15k-scale-smp (Supervivencia/Skyblock).",
             "env_variable": "UNIVERSE_PROFILE",
             "default_value": "15k-hyper-hub",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|string|in:15k-hyper-hub,15k-mega-arena,15k-scale-smp",
+            "rules": "required|string|in:ultra-low-ram-cpu,15k-hyper-hub,15k-mega-arena,15k-scale-smp",
             "field_type": "select",
             "field_options": [
+                "ultra-low-ram-cpu",
                 "15k-hyper-hub",
                 "15k-mega-arena",
                 "15k-scale-smp"
@@ -97,9 +98,9 @@
         },
         {
             "name": "JVM Flags (ZGC Generacional)",
-            "description": "Banderas avanzadas de la JVM optimizadas para latencia ultrabaja en Java 24 con Generational ZGC y memoria pre-tocada.",
+            "description": "Banderas avanzadas de la JVM optimizadas para latencia ultrabaja en Java 24 con Generational ZGC, deduplicación de cadenas y memoria pre-tocada.",
             "env_variable": "JVM_FLAGS",
-            "default_value": "-XX:+UseZGC -XX:+ZGenerational -XX:+AlwaysPreTouch -XX:+UseNUMA -Dio.netty.allocator.type=pooled",
+            "default_value": "-XX:+UseZGC -XX:+ZGenerational -XX:+AlwaysPreTouch -XX:+UseNUMA -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -Dio.netty.allocator.type=pooled",
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string",

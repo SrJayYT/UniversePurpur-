@@ -153,7 +153,19 @@ public final class UniverseDiscordLinker {
         return true;
     }
 
+    public void cleanExpiredCodes() {
+        long now = System.currentTimeMillis();
+        pendingCodes.entrySet().removeIf(e -> {
+            if (e.getValue().expiresAt < now) {
+                playerToCode.remove(e.getValue().playerUuid);
+                return true;
+            }
+            return false;
+        });
+    }
+
     public boolean unlink(UUID uuid) {
+
         if (uuid == null) return false;
         LinkedAccount removed = linkedByPlayer.remove(uuid);
         if (removed != null) {

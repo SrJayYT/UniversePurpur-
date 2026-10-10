@@ -83,7 +83,14 @@ UniversePurpur incluye de forma nativa un servidor HTTP embebido de alto rendimi
 - **API REST para Bots de Discord:**
   - `GET /api/discord/lookup?discordId=<id>`: Busca el jugador de Minecraft vinculado a una ID de Discord.
   - `GET /api/discord/lookup?player=<name>`: Busca los datos de Discord vinculados a un jugador.
-  - Permite a cualquier bot de Discord sincronizar roles, rangos y verificaciones automáticamente.
+### 🍃 8. Ultra-Optimización de Consumo Mínimo de RAM y CPU
+Diseñado especialmente para maximizar la densidad de instancias y permitir correr UniversePurpur en servidores VPS económicos o nodos de bajos recursos sin perder estabilidad:
+- **Telemetría Event-Driven de Chunks $O(1)$:** Elimina los bucles periódicos que instanciaban arrays de chunks en el hilo primario, rastreando el recuento atómicamente mediante eventos de Bukkit (`ChunkLoadEvent` / `ChunkUnloadEvent`) con cero coste de CPU.
+- **Aggressive Memory Saver & Chunk Pruning:** Si el consumo de Heap supera el umbral configurado, el gobernador purga de forma proactiva chunks sin jugadores cercanos (a más de 64 bloques de distancia), liberando megabytes críticos de memoria.
+- **Purga de Sesiones y Códigos en Heap:** Limpieza periódica de sesiones administrativas caducadas y códigos temporales de Discord no utilizados, evitando acumulación en mapas en memoria.
+- **Dynamic Activation of Brain (DAB) Extremo:** Ticks de IA cerebral reducidos a frecuencias de hasta 40 ticks para entidades fuera del rango de activación.
+- **Hopper Empty Throttling (16 ticks):** Tolvas vacías entran en modo de espera de 16 ticks, reduciendo radicalmente el uso de CPU generado por complejos sistemas de redstone.
+- **Cero Colisiones y Fusión de Ítems:** Colisiones desactivadas ($O(1)$ por tick) y radio de fusión de ítems en suelo ampliado a 5.0 bloques, minimizando el conteo de entidades activas.
 
 ---
 
@@ -103,7 +110,8 @@ En [`universe-purpur.yml`](universe-purpur.yml), UniversePurpur incluye perfiles
 
 | Preset | Caso de Uso | Distancia Simulación | Max Jugadores Visibles | Colisiones |
 | :--- | :--- | :---: | :---: | :---: |
-| `15k-hyper-hub` | Lobbies principales y Spawns masivos | **2 chunks** | **24** | **0** (Desactivadas) |
+| `ultra-low-ram-cpu` | Servidores VPS económicos y Budget Nodes (Consumo mínimo RAM/CPU) | **2 chunks** (view 4) | **16** | **0** (Desactivadas) |
+| `15k-hyper-hub` | Lobbies principales y Spawns masivos | **2 chunks** (view 6) | **24** | **0** (Desactivadas) |
 | `15k-mega-arena` | Bedwars, Skywars, Duels y Práctica | **3 chunks** | **48** | **1** (Máx 1 empuje) |
 | `15k-scale-smp` | Supervivencia masiva y Skyblock | **3 chunks** | **32** | **1** (Máx 1 empuje) |
 
@@ -124,7 +132,7 @@ El comando maestro `/universespigot` (alias: `/uspigot`, `/universe`) proporcion
 /universespigot status
   Muestra el Dashboard en vivo con TPS, MSPT, memoria RAM, nivel del gobernador y métricas de culling.
 
-/universespigot profile <15k-hyper-hub | 15k-mega-arena | 15k-scale-smp>
+/universespigot profile <ultra-low-ram-cpu | 15k-hyper-hub | 15k-mega-arena | 15k-scale-smp>
   Cambia el perfil de rendimiento en caliente sin reiniciar el servidor.
 
 /universespigot lagprotection <on | off | auto>
@@ -153,26 +161,41 @@ El comando maestro `/universespigot` (alias: `/uspigot`, `/universe`) proporcion
 
 ### Banderas Recomendadas de la JVM (Java 24 LTS con Generational ZGC)
 
-UniversePurpur está optimizado para ejecutarse con **Generational ZGC** en servidores con 32 GB a 64 GB de RAM:
+UniversePurpur soporta tanto entornos de recursos mínimos (VPS de 1GB - 4GB) como clústeres masivos (+15,000 jugadores):
 
-#### Windows (`start.bat`):
+#### 🍃 Perfil Ultra-Bajo Consumo (VPS / Nodos Económicos de 2GB a 4GB RAM):
+```bash
+java -Xms1G -Xmx3G \
+  -XX:+UseZGC -XX:+ZGenerational \
+  -XX:+UseStringDeduplication \
+  -XX:+OptimizeStringConcat \
+  -XX:CICompilerCount=2 \
+  -Dio.netty.recycler.maxCapacityPerThread=1024 \
+  -jar universepurpur.jar --nogui
+```
+
+#### ⚡ Perfil Hyper-Scale (+15,000 Jugadores Masivos):
+- **Windows (`start.bat`):**
 ```bat
-java -Xms32G -Xmx32G ^
+java -Xms32G -Xmx48G ^
   -XX:+UseZGC -XX:+ZGenerational ^
   -XX:+AlwaysPreTouch ^
   -XX:+UseNUMA ^
+  -XX:+UseStringDeduplication ^
+  -XX:+OptimizeStringConcat ^
   -Dio.netty.allocator.type=pooled ^
-  -jar purpurclip.jar nogui
+  -jar universepurpur.jar --nogui
 ```
-
-#### Linux (`start.sh`):
+- **Linux (`start.sh`):**
 ```bash
-java -Xms48G -Xmx48G \
+java -Xms32G -Xmx48G \
   -XX:+UseZGC -XX:+ZGenerational \
   -XX:+AlwaysPreTouch \
   -XX:+UseNUMA \
+  -XX:+UseStringDeduplication \
+  -XX:+OptimizeStringConcat \
   -Dio.netty.allocator.type=pooled \
-  -jar purpurclip.jar nogui
+  -jar universepurpur.jar --nogui
 ```
 
 ### 🦅 Despliegue en Panel Pterodactyl / Pelican

@@ -121,6 +121,12 @@ public final class UniverseUserManager {
         }
     }
 
+    public void cleanExpiredSessions() {
+        long now = System.currentTimeMillis();
+        activeSessions.entrySet().removeIf(e -> e.getValue().expiresAt < now);
+    }
+
+
     public boolean createUser(String username, String password, Role role) {
         if (username == null || password == null || username.trim().isEmpty() || password.length() < 4) {
             return false;
