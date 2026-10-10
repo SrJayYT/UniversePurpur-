@@ -32,7 +32,7 @@ public class UniverseSpigotCommand extends Command {
     public UniverseSpigotCommand(String name) {
         super(name);
         this.description = "UniverseSpigot 15k Titan Engine diagnostics, profile manager and lag controls";
-        this.usageMessage = "/universespigot [status | reload | profile <name> | lagprotection <on|off|auto> | purge <items|ambient|monsters> | memory [trim] | shield | spatial]";
+        this.usageMessage = "/universespigot [status | reload | profile <name> | lagprotection <on|off|auto> | purge <items|ambient|monsters> | memory [trim] | shield | spatial | webpanel]";
         this.setPermission("bukkit.command.universespigot");
         this.setAliases(Arrays.asList("uspigot", "universe"));
     }
@@ -40,7 +40,7 @@ public class UniverseSpigotCommand extends Command {
     @Override
     public List<String> tabComplete(CommandSender sender, String alias, String[] args, Location location) throws IllegalArgumentException {
         if (args.length == 1) {
-            return Stream.of("status", "reload", "profile", "lagprotection", "purge", "memory", "shield", "spatial")
+            return Stream.of("status", "reload", "profile", "lagprotection", "purge", "memory", "shield", "spatial", "webpanel")
                     .filter(arg -> arg.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
@@ -193,6 +193,22 @@ public class UniverseSpigotCommand extends Command {
                 sender.sendMessage(Component.text("• Nearest Player Sorting: ", NamedTextColor.GRAY)
                         .append(Component.text("ACTIVE (O(1) lookups, proximity guaranteed)", NamedTextColor.GREEN)));
             }
+            case "webpanel" -> {
+                org.purpurmc.purpur.web.UniverseWebPanel panel = org.purpurmc.purpur.web.UniverseWebPanel.instance();
+                int port = UniversePurpurConfig.webPanelPort;
+                String token = UniversePurpurConfig.webPanelAuthToken;
+                sender.sendMessage(Component.text("=== UniversePurpur Embedded Web Admin Panel ===", NamedTextColor.DARK_GRAY));
+                sender.sendMessage(Component.text("• Panel Status: ", NamedTextColor.GRAY)
+                        .append(Component.text(panel.isRunning() ? "ONLINE" : "OFFLINE", panel.isRunning() ? NamedTextColor.GREEN : NamedTextColor.RED)));
+                sender.sendMessage(Component.text("• URL de Acceso: ", NamedTextColor.GRAY)
+                        .append(Component.text("http://127.0.0.1:" + port, NamedTextColor.AQUA)));
+                sender.sendMessage(Component.text("• Auth Token: ", NamedTextColor.GRAY)
+                        .append(Component.text(token.isEmpty() ? "Ninguno (Abierto)" : token, NamedTextColor.GOLD)));
+                sender.sendMessage(Component.text("• Consola Remota: ", NamedTextColor.GRAY)
+                        .append(Component.text(UniversePurpurConfig.webPanelAllowCommands ? "HABILITADA" : "DESHABILITADA", NamedTextColor.WHITE)));
+                sender.sendMessage(Component.text("• Puertos Default (2, 3 con Geyser): ", NamedTextColor.GRAY)
+                        .append(Component.text("Java: " + (Bukkit.getPort() > 0 ? Bukkit.getPort() : 25565) + " | Web: " + port + " | Geyser: " + UniversePurpurConfig.geyserPort, NamedTextColor.GREEN)));
+            }
             default -> sender.sendMessage(Component.text("Unknown subcommand. Use /" + commandLabel + " status", NamedTextColor.RED));
         }
 
@@ -259,6 +275,10 @@ public class UniverseSpigotCommand extends Command {
 
         sender.sendMessage(Component.text("• Anti-Crash Shield: ", NamedTextColor.GRAY)
                 .append(Component.text(UniversePurpurConfig.antiCrashShieldEnabled ? "ACTIVE (Zero-Day Hardened)" : "DISABLED", NamedTextColor.GREEN)));
+
+        int jPort = Bukkit.getPort() > 0 ? Bukkit.getPort() : 25565;
+        sender.sendMessage(Component.text("• Puertos & Panel Web: ", NamedTextColor.GRAY)
+                .append(Component.text("Java: " + jPort + " | Web: " + UniversePurpurConfig.webPanelPort + " (http://127.0.0.1:" + UniversePurpurConfig.webPanelPort + ") | Geyser: " + UniversePurpurConfig.geyserPort, NamedTextColor.AQUA)));
 
         sender.sendMessage(Component.text("========================================", NamedTextColor.DARK_GRAY));
     }

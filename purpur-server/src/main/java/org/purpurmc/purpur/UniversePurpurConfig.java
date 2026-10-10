@@ -107,6 +107,14 @@ public final class UniversePurpurConfig {
     public static double memoryTrimThresholdPercent = 85.0D;
     public static boolean antiCrashShieldEnabled = true;
 
+    // --- Web Admin Panel & Port Infrastructure (2 Default Ports: 25565 Java, 25566 Web; 3 if Geyser: 19132) ---
+    public static boolean webPanelEnabled = true;
+    public static int webPanelPort = 25566;
+    public static String webPanelBindAddress = "0.0.0.0";
+    public static String webPanelAuthToken = "admin15k";
+    public static boolean webPanelAllowCommands = true;
+    public static int geyserPort = 19132;
+
     private UniversePurpurConfig() {}
 
     public static void init(File serverRootDir) {
@@ -134,6 +142,7 @@ public final class UniversePurpurConfig {
         try {
             org.purpurmc.purpur.task.UniverseGovernorTask.instance().start();
             org.purpurmc.purpur.task.UniverseMemoryGovernor.instance().start();
+            org.purpurmc.purpur.web.UniverseWebPanel.instance().start();
             org.purpurmc.purpur.util.UniverseBanner.print();
         } catch (Throwable ignore) {
         }
@@ -231,6 +240,14 @@ public final class UniversePurpurConfig {
         memoryAutoTrimEnabled = getBoolean("global.performance.memory-auto-trim.enabled", memoryAutoTrimEnabled);
         memoryTrimThresholdPercent = getDouble("global.performance.memory-auto-trim.threshold-percent", memoryTrimThresholdPercent);
         antiCrashShieldEnabled = getBoolean("global.security.anti-crash-shield.enabled", antiCrashShieldEnabled);
+
+        // Web Admin Panel & Port Infrastructure (2 Ports Default, 3 if Geyser)
+        webPanelEnabled = getBoolean("global.web-panel.enabled", webPanelEnabled);
+        webPanelPort = getInt("global.web-panel.port", webPanelPort);
+        webPanelBindAddress = getString("global.web-panel.bind-address", webPanelBindAddress);
+        webPanelAuthToken = getString("global.web-panel.auth-token", webPanelAuthToken);
+        webPanelAllowCommands = getBoolean("global.web-panel.allow-remote-commands", webPanelAllowCommands);
+        geyserPort = getInt("global.geyser.bedrock-port", geyserPort);
     }
 
     // --- Dynamic Governor Query Helpers ---

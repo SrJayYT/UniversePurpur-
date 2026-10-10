@@ -60,7 +60,25 @@ Algoritmo de *Token Bucket* atómico basado en bucles CAS (`compareAndSet`):
 - Poda preventiva de cachés de mundos y chunks inactivos antes de que ocurran picos de parada de mundo (Stop-The-World).
 - Despacho seguro en el hilo principal cumpliendo con las restricciones de `AsyncCatcher` de Paper.
 
+### 💻 6. Panel Administrador Web Integrado (`UniverseWebPanel`)
+UniversePurpur incluye de forma nativa un servidor HTTP embebido de alto rendimiento (puerto predeterminado `25566`) con interfaz gráfica moderna y responsiva:
+- **Dashboard en Tiempo Real:** Monitor de TPS, MSPT, uso de RAM Heap, pausas de GC acumuladas y estado del governor.
+- **Gestión Total de Jugadores:** Visualiza todos los usuarios conectados, con opción de expulsar (**Kick**), suspender (**Ban**) o alternar permisos (**OP**) en 1 clic.
+- **Terminal de Consola Remota:** Envía y ejecuta cualquier comando de Minecraft (`/stop`, `/say`, `/give`, `/whitelist`, etc.) directamente desde el navegador sin necesidad de acceso SSH o panel externo.
+- **Control Rápido de Mitigación:** Alterna perfiles en caliente, dispara podas de memoria preventivas (`trim`) y limpia entidades acumuladas (`purge`).
+- **Seguridad Robusta:** Autenticación protegida por Bearer Token configurable en [`universe-purpur.yml`](universe-purpur.yml).
+
 ---
+
+## 🔌 Arquitectura de Puertos del Servidor
+
+UniversePurpur requiere **2 puertos por defecto** (y un 3er puerto opcional si se utiliza Geyser):
+
+| Puerto | Protocolo | Servicio | Descripción |
+| :---: | :---: | :--- | :--- |
+| **`25565`** | **TCP** | **Minecraft Java Server** | Puerto principal de conexión para clientes Java de Minecraft. |
+| **`25566`** | **TCP / HTTP** | **Web Admin Panel** | Panel web de control y monitoreo hosteado en el servidor (`http://<ip>:25566`). |
+| **`19132`** | **UDP** | **Geyser Bedrock (Opcional)** | Puerto para compatibilidad crossplay con Minecraft Bedrock (móviles, consolas). |
 
 ## 🎯 Presets de Alto Rendimiento
 

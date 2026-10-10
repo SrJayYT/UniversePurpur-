@@ -127,6 +127,25 @@ global:
     anti-crash-shield:
       enabled: true                    # Defends against NaN vectors, oversized NBT and malformed packets
 
+  # ---------------------------------------------------------------------------
+  # Built-in Web Admin Panel & Port Infrastructure (2 Default Ports, 3 Geyser)
+  # Puerto 1 (25565): Servidor Java Minecraft
+  # Puerto 2 (25566): Panel Web Administrador hosteado en el server (http://ip:25566)
+  # Puerto 3 (19132): Geyser Bedrock UDP (Opcional para clientes móviles y consolas)
+  # ---------------------------------------------------------------------------
+  web-panel:
+    enabled: true                      # Activa el panel web embebido nativamente
+    port: 25566                        # Puerto HTTP para el panel web administrador
+    bind-address: "0.0.0.0"            # Dirección de escucha
+    auth-token: "admin15k"             # Token de acceso para el panel
+    allow-remote-commands: true        # Permite ejecutar comandos de consola desde la web
+
+  # ---------------------------------------------------------------------------
+  # Soporte de Puertos Geyser Bedrock (3er Puerto)
+  # ---------------------------------------------------------------------------
+  geyser:
+    bedrock-port: 19132                # Puerto UDP para clientes Bedrock vía Geyser
+
 # =============================================================================
 # Presets: Hyper-Scale Presets for +15,000 Players Environments
 # =============================================================================

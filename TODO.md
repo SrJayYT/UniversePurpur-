@@ -27,3 +27,4 @@
 - [x] 18) Blindaje estricto de slots en `AntiCrashShield.java`: rechazo inmediato de slots fuera de `[0, maxSlots)` eliminando caídas del servidor por `IndexOutOfBoundsException`.
 - [x] 19) Monotonía matemática en `UniverseGovernorTask.java`: umbrales escalonados entre target y hard-limit que previenen inversión o salto de niveles de mitigación.
 - [x] 20) Persistencia de directorio raíz y recarga robusta en `UniversePurpurConfig.java` y `PurpurCommand.java`.
+- [x] 21) Infraestructura de puertos duales (2 por defecto: 25565 Java + 25566 Web, 3 si Geyser: 19132) y Panel Administrador Web nativo (`UniverseWebPanel.java`) con gestión de jugadores (kick/ban/op), consola de comandos interactiva en vivo, telemetría y autenticación por token.
