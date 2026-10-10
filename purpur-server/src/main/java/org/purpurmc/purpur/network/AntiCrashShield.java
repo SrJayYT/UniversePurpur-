@@ -48,6 +48,22 @@ public final class AntiCrashShield {
     }
 
     /**
+     * Validates rotation angles against NaN and Infinity crash packets.
+     */
+    public boolean validateRotation(float yaw, float pitch) {
+        if (!UniversePurpurConfig.antiCrashShieldEnabled) {
+            return true;
+        }
+
+        if (Float.isNaN(yaw) || Float.isNaN(pitch) || Float.isInfinite(yaw) || Float.isInfinite(pitch)) {
+            blockedInvalidMovement.incrementAndGet();
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Validates incoming custom payload buffer sizes against crasher payloads.
      */
     public boolean validatePayloadSize(int bytes) {

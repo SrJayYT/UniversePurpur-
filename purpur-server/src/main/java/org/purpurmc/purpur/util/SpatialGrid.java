@@ -14,6 +14,7 @@ import org.bukkit.entity.Player;
  * Replaces O(N) linear entity scans with O(1) hash bucket lookups for nearby players and entities,
  * eliminating the CPU bottleneck in mega-scale player tracking and culling.
  *
+ * Thread-safe with cross-world distance exception protection.
  * Author: DevPapo
  */
 public final class SpatialGrid {
@@ -28,6 +29,7 @@ public final class SpatialGrid {
 
     /**
      * Clears and repopulates the grid with current world entities.
+     * Thread-safe with synchronized bucket lists.
      */
     public void updateWorldEntities(Iterable<? extends Entity> entities) {
         buckets.clear();
@@ -35,12 +37,13 @@ public final class SpatialGrid {
             if (!entity.isValid()) continue;
             Location loc = entity.getLocation();
             long key = bucketKey(loc.getBlockX(), loc.getBlockZ());
-            buckets.computeIfAbsent(key, k -> new ArrayList<>(8)).add(entity);
+            buckets.computeIfAbsent(key, k -> Collections.synchronizedList(new ArrayList<>(8))).add(entity);
         }
     }
 
     /**
      * Finds nearby players in neighboring buckets in O(1) time without iterating the entire server.
+     * Guarded against cross-world distance measurement crashes.
      *
      * @param center Source player location
      * @param radiusBlock Distance radius in blocks
@@ -66,12 +69,19 @@ public final class SpatialGrid {
                 List<Entity> bucket = buckets.get(key);
                 if (bucket == null) continue;
 
-                for (Entity entity : bucket) {
-                    if (entity instanceof Player player && player.isOnline()) {
-                        if (player.getLocation().distanceSquared(center) <= radiusSq) {
-                            results.add(player);
-                            if (results.size() >= maxResults) {
-                                return results;
+                synchronized (bucket) {
+                    for (Entity entity : bucket) {
+                        if (entity instanceof Player player && player.isOnline()) {
+                            Location pLoc = player.getLocation();
+                            // Guard against cross-world IllegalArgumentException
+                            if (pLoc.getWorld() == null || !pLoc.getWorld().equals(center.getWorld())) {
+                                continue;
+                            }
+                            if (pLoc.distanceSquared(center) <= radiusSq) {
+                                results.add(player);
+                                if (results.size() >= maxResults) {
+                                    return results;
+                                }
                             }
                         }
                     }

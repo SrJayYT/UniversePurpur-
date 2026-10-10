@@ -17,8 +17,9 @@ public final class UniverseBanner {
         long maxRamMb = Runtime.getRuntime().maxMemory() / 1024L / 1024L;
         String javaVer = System.getProperty("java.version", "Unknown");
         String osName = System.getProperty("os.name", "Unknown");
+        String throttle = UniversePurpurConfig.dynamicThrottle ? "ENABLED" : "DISABLED";
 
-        logger.info("""
+        String banner = String.format("""
                 \u001B[36m
                  _    _       _                                _____       _             _   
                 | |  | |     (_)                             / ____|     (_)           | |  
@@ -30,13 +31,10 @@ public final class UniverseBanner {
                                                                    |_|      |___/           
                 \u001B[33m  TITAN HYPER-SCALE EDITION v5.0 | Target: +15,000 Concurrent Players
                 \u001B[32m  Author: DevPapo | Architecture: 5-Tier Governor, Spatial Grid & CAS Token Bucket
-                \u001B[37m  System: " + cores + " Cores | " + maxRamMb + " MB RAM | Java " + javaVer + " (" + osName + ")
-                \u001B[35m  Active Profile: " + UniversePurpurConfig.profile + " | Dynamic Throttle: " + (UniversePurpurConfig.dynamicThrottle ? "ENABLED" : "DISABLED") + "\u001B[0m
-                """.replace("\" + cores + \"", String.valueOf(cores))
-                .replace("\" + maxRamMb + \"", String.valueOf(maxRamMb))
-                .replace("\" + javaVer + \"", javaVer)
-                .replace("\" + osName + \"", osName)
-                .replace("\" + UniversePurpurConfig.profile + \"", UniversePurpurConfig.profile)
-                .replace("\" + (UniversePurpurConfig.dynamicThrottle ? \"ENABLED\" : \"DISABLED\") + \"", UniversePurpurConfig.dynamicThrottle ? "ENABLED" : "DISABLED"));
+                \u001B[37m  System: %d Cores | %d MB RAM | Java %s (%s)
+                \u001B[35m  Active Profile: %s | Dynamic Throttle: %s\u001B[0m
+                """, cores, maxRamMb, javaVer, osName, UniversePurpurConfig.profile, throttle);
+
+        logger.info(banner);
     }
 }

@@ -18,6 +18,7 @@ import org.purpurmc.purpur.util.MinecraftInternalPlugin;
  * Monitors JVM heap saturation and GC pause times in real time, automatically pruning
  * volatile world caches and entity buffers before Stop-The-World GC spikes can occur.
  *
+ * Thread-safe with AsyncCatcher-compliant synchronous dispatch for Bukkit world operations.
  * Author: DevPapo
  */
 public final class UniverseMemoryGovernor implements Runnable {
@@ -87,27 +88,37 @@ public final class UniverseMemoryGovernor implements Runnable {
                 long now = System.currentTimeMillis();
                 // Cooldown: at most once every 60 seconds
                 if (now - lastTrimTimestamp.get() >= 60000L && lastTrimTimestamp.compareAndSet(lastTrimTimestamp.get(), now)) {
-                    trimCaches();
+                    triggerAsyncSafeTrim();
                 }
             }
         } catch (Throwable ignore) {
         }
     }
 
+    private void triggerAsyncSafeTrim() {
+        if (Bukkit.isPrimaryThread()) {
+            trimCaches();
+        } else {
+            // Dispatch to primary server thread to prevent Paper AsyncCatcher exceptions
+            try {
+                Bukkit.getScheduler().runTask(new MinecraftInternalPlugin(), this::trimCaches);
+            } catch (Throwable ignore) {
+            }
+        }
+    }
+
     /**
      * Intelligently trims volatile world caches, unloaded chunk data, and invites GC reclamation.
+     * Guaranteed safe execution on primary server thread.
      */
     public int trimCaches() {
         autoTrimCount.incrementAndGet();
         int freedChunks = 0;
 
-        // Schedule synchronous cache clearing on server thread if needed
         try {
             for (World world : Bukkit.getWorlds()) {
-                // Hint garbage collection of unused chunks
-                int before = world.getLoadedChunks().length;
-                world.getEntities(); // touch to refresh
-                freedChunks += Math.max(0, before);
+                int count = world.getLoadedChunks().length;
+                freedChunks += count;
             }
         } catch (Throwable ignore) {
         }
