@@ -21,3 +21,9 @@
 - [x] 12) Módulo `AntiCrashShield.java`: blindaje contra exploits Zero-Day (vectores NaN/Infinity, paquetes con NBT >16KB y slots inválidos).
 - [x] 13) Módulo `UniverseBanner.java`: diagnóstico de telemetría ANSI en consola al arrancar el servidor.
 - [x] 14) Subcomandos `/universespigot memory [trim]` y `/universespigot shield` integrados en el comando de diagnóstico.
+- [x] 15) Corrección de ordenamiento por proximidad en `SpatialGrid.java`: resolución de culling errático garantizando que jugadores en radio inmediato nunca sean ocultados.
+- [x] 16) Aislamiento multi-mundo en `SpatialGrid.java`: particionado independiente por UUID de mundo eliminando reseteos accidentales de grids entre Overworld, Nether y Arenas.
+- [x] 17) Corrección de sobreescritura de ráfaga y deriva de micro-tokens en `PacketRateLimiter.java`: conservación estricta de `packetBurstLimit` y preservación del residuo temporal fraccional.
+- [x] 18) Blindaje estricto de slots en `AntiCrashShield.java`: rechazo inmediato de slots fuera de `[0, maxSlots)` eliminando caídas del servidor por `IndexOutOfBoundsException`.
+- [x] 19) Monotonía matemática en `UniverseGovernorTask.java`: umbrales escalonados entre target y hard-limit que previenen inversión o salto de niveles de mitigación.
+- [x] 20) Persistencia de directorio raíz y recarga robusta en `UniversePurpurConfig.java` y `PurpurCommand.java`.
