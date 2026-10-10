@@ -175,6 +175,24 @@ java -Xms48G -Xmx48G \
   -jar purpurclip.jar nogui
 ```
 
+### 🦅 Despliegue en Panel Pterodactyl / Pelican
+
+UniversePurpur incluye un **Egg oficial de Pterodactyl** preconfigurado y listo para importar: [`egg-universepurpur.json`](egg-universepurpur.json).
+
+#### Pasos para Importar e Instalar en Pterodactyl:
+1. Accede al panel administrativo de Pterodactyl o Pelican y ve a **Nests**.
+2. Selecciona tu categoría (por ejemplo *Minecraft*) y haz clic en el botón **Import Egg**.
+3. Sube el archivo [`egg-universepurpur.json`](egg-universepurpur.json) desde la raíz de este repositorio.
+4. Asigna las variables de entorno deseadas:
+   - `SERVER_JARFILE`: `universepurpur.jar`
+   - `WEB_PORT`: `25566` (Recuerda añadir una asignación o *allocation* adicional a tu servidor en Pterodactyl).
+   - `WEB_AUTH_TOKEN`: `admin15k`
+   - `UNIVERSE_PROFILE`: `15k-hyper-hub` (o el preset de tu preferencia).
+   - `JVM_FLAGS`: Flags ZGC Generacional con latencia ultrabaja.
+5. Selecciona la imagen Docker oficial `ghcr.io/pterodactyl/yolks:java_24` (o `ghcr.io/pterodactyl/yolks:java_21`).
+6. ¡Inicia el servidor! UniversePurpur levantará automáticamente el servidor Java en el puerto primario y el Panel Web en el puerto secundario.
+
+
 ---
 
 ## 🔨 Compilación

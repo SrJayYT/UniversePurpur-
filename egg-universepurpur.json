@@ -1,0 +1,129 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2026-10-10T18:55:00-04:00",
+    "name": "UniversePurpur (+15,000 Players Titan Engine)",
+    "author": "support@universepurpur.io",
+    "description": "UniversePurpur es una bifurcación empresarial de alto rendimiento de Purpur y Paper diseñada para mega-redes (+15,000 jugadores simultáneos).\r\n\r\nCaracterísticas:\r\n- Dynamic MSPT Governor autónomo de 5 niveles\r\n- Particionado Espacial 2D O(1) con proximity sorting\r\n- Limitador Lock-Free de Paquetes Netty (Token Bucket adaptativo)\r\n- Blindaje Anti-Crasher y Zero-Day Exploit Protection\r\n- Servidor Web Embebido Dual-Port (Java 25565 + Web 25566, Geyser 19132) con portal público y panel de administración.",
+    "features": [
+        "eula",
+        "java_version"
+    ],
+    "docker_images": {
+        "Java 24 (ZGC Generacional - Recomendado)": "ghcr.io/pterodactyl/yolks:java_24",
+        "Java 21 LTS": "ghcr.io/pterodactyl/yolks:java_21",
+        "Eclipse Temurin 24 (Noble)": "eclipse-temurin:24-jdk-noble"
+    },
+    "file_denylist": [],
+    "startup": "java -Xms128M -Xmx{{SERVER_MEMORY}}M {{JVM_FLAGS}} -Dterminal.jline=false -Dterminal.ansi=true -jar {{SERVER_JARFILE}} nogui",
+    "config": {
+        "files": {
+            "server.properties": {
+                "parser": "properties",
+                "find": {
+                    "server-port": "{{server.build.default.port}}"
+                }
+            },
+            "universe-purpur.yml": {
+                "parser": "yaml",
+                "find": {
+                    "global.web-panel.port": "{{WEB_PORT}}",
+                    "global.web-panel.auth-token": "{{WEB_AUTH_TOKEN}}",
+                    "performance.profile": "{{UNIVERSE_PROFILE}}"
+                }
+            }
+        },
+        "startup": {
+            "done": ") Done (",
+            "userInteraction": []
+        },
+        "stop": "stop"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\r\n# UniversePurpur Pterodactyl Installer\r\n# Author: DevPapo\r\n\r\napt-get update -y\r\napt-get install -y curl jq file wget unzip\r\n\r\nmkdir -p /mnt/server\r\ncd /mnt/server\r\n\r\necho \"==========================================================\"\r\necho \" Instalando UniversePurpur (+15,000 Players Titan Engine) \"\r\necho \"==========================================================\"\r\n\r\nif [ -z \"${SERVER_JARFILE}\" ]; then\r\n    SERVER_JARFILE=\"universepurpur.jar\"\r\nfi\r\n\r\n# 1. Descarga desde URL directa si está configurada\r\nif [ -n \"${DOWNLOAD_URL}\" ] && [ \"${DOWNLOAD_URL}\" != \"null\" ]; then\r\n    echo \"Descargando UniversePurpur desde: ${DOWNLOAD_URL}\"\r\n    curl -sSL -o \"${SERVER_JARFILE}\" \"${DOWNLOAD_URL}\"\r\nfi\r\n\r\n# 2. Descarga desde Releases de GitHub si el archivo no existe o está vacío\r\nif [ ! -f \"${SERVER_JARFILE}\" ] || [ ! -s \"${SERVER_JARFILE}\" ]; then\r\n    echo \"Buscando release en GitHub: SrJayYT/UniversePurpur-...\"\r\n    LATEST_URL=$(curl -sSL https://api.github.com/repos/SrJayYT/UniversePurpur-/releases/latest | jq -r '.assets[]? | select(.name | endswith(\".jar\")) | .browser_download_url' | head -n 1)\r\n    if [ -n \"${LATEST_URL}\" ] && [ \"${LATEST_URL}\" != \"null\" ]; then\r\n        echo \"Descargando build oficial: ${LATEST_URL}\"\r\n        curl -sSL -o \"${SERVER_JARFILE}\" \"${LATEST_URL}\"\r\n    else\r\n        echo \"Aviso: No se detectó un release binario automático en GitHub.\"\r\n        echo \"Por favor sube tu JAR compilado '${SERVER_JARFILE}' mediante SFTP al directorio del servidor.\"\r\n        touch \"${SERVER_JARFILE}\"\r\n    fi\r\nfi\r\n\r\n# 3. Aceptar EULA automáticamente\r\nif [ ! -f \"eula.txt\" ]; then\r\n    echo \"Configurando eula.txt (eula=true)...\"\r\n    echo \"eula=true\" > eula.txt\r\nfi\r\n\r\necho \"==========================================================\"\r\necho \" UniversePurpur instalado correctamente.\"\r\necho \" Configuración de Puertos en Pterodactyl:\"\r\necho \"   1. Puerto Primario: Minecraft Java (${SERVER_PORT:-25565})\"\r\necho \"   2. Puerto Adicional (Allocation): Web Panel & Portal (${WEB_PORT:-25566})\"\r\necho \"   3. Puerto Bedrock (Opcional): Geyser (${GEYSER_PORT:-19132})\"\r\necho \"==========================================================\"",
+            "container": "ghcr.io/pterodactyl/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Server Jar File",
+            "description": "El nombre del archivo JAR del servidor ejecutable principal.",
+            "env_variable": "SERVER_JARFILE",
+            "default_value": "universepurpur.jar",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:40",
+            "field_type": "text"
+        },
+        {
+            "name": "Web Panel & Portal Port",
+            "description": "Puerto secundario en el que se ejecuta el portal web público y el panel de administración (/admin). Recuerda asignar una asignación (Allocation) adicional en Pterodactyl.",
+            "env_variable": "WEB_PORT",
+            "default_value": "25566",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|numeric|between:1024,65535",
+            "field_type": "text"
+        },
+        {
+            "name": "Web Master Auth Token",
+            "description": "Token maestro para el acceso y autenticación en la interfaz administrativa y API web.",
+            "env_variable": "WEB_AUTH_TOKEN",
+            "default_value": "admin15k",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Universe Performance Profile",
+            "description": "Preset de rendimiento de UniversePurpur: 15k-hyper-hub (Lobbies/Spawns masivos), 15k-mega-arena (Bedwars/Arenas), o 15k-scale-smp (Supervivencia/Skyblock).",
+            "env_variable": "UNIVERSE_PROFILE",
+            "default_value": "15k-hyper-hub",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:15k-hyper-hub,15k-mega-arena,15k-scale-smp",
+            "field_type": "select",
+            "field_options": [
+                "15k-hyper-hub",
+                "15k-mega-arena",
+                "15k-scale-smp"
+            ]
+        },
+        {
+            "name": "JVM Flags (ZGC Generacional)",
+            "description": "Banderas avanzadas de la JVM optimizadas para latencia ultrabaja en Java 24 con Generational ZGC y memoria pre-tocada.",
+            "env_variable": "JVM_FLAGS",
+            "default_value": "-XX:+UseZGC -XX:+ZGenerational -XX:+AlwaysPreTouch -XX:+UseNUMA -Dio.netty.allocator.type=pooled",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Download URL",
+            "description": "URL directa para descargar el binario JAR de UniversePurpur. Si está vacía, se intentará descargar del release más reciente de GitHub.",
+            "env_variable": "DOWNLOAD_URL",
+            "default_value": "https://github.com/SrJayYT/UniversePurpur-/releases/latest/download/universepurpur.jar",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Geyser Bedrock Port",
+            "description": "Puerto UDP para compatibilidad con Minecraft Bedrock si se usa el plugin Geyser.",
+            "env_variable": "GEYSER_PORT",
+            "default_value": "19132",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|numeric|between:1024,65535",
+            "field_type": "text"
+        }
+    ]
+}
