@@ -9,10 +9,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import net.kyori.adventure.text.Component;
 import org.bukkit.BanList;
@@ -23,6 +23,7 @@ import org.bukkit.entity.Ambient;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 import org.purpurmc.purpur.UniversePurpurConfig;
 import org.purpurmc.purpur.network.AntiCrashShield;
 import org.purpurmc.purpur.task.UniverseGovernorTask;
@@ -33,14 +34,16 @@ import org.purpurmc.purpur.util.MinecraftInternalPlugin;
  * Built-in Lightweight Web Admin Panel & Control Server for UniversePurpur (+15,000 Players).
  * Hosts an embedded HTTP server directly inside the Minecraft server (default port 25566).
  *
- * Provides real-time dashboard telemetry, full player management (kick, ban, teleport),
- * remote server console command execution, profile switching, and lag mitigation triggers.
- *
+ * Thread-safe with AsyncCatcher-compliant dispatch, cached chunk metrics, and secure token authentication.
  * Author: DevPapo
  */
 public final class UniverseWebPanel {
     private static UniverseWebPanel instance;
+    private static final MinecraftInternalPlugin PLUGIN = new MinecraftInternalPlugin();
+
     private HttpServer server;
+    private BukkitTask chunkMetricsTask;
+    private volatile int cachedLoadedChunks = 0;
     private boolean running = false;
 
     private UniverseWebPanel() {}
@@ -80,6 +83,19 @@ public final class UniverseWebPanel {
 
             server.start();
             running = true;
+
+            // Periodically refresh loaded chunk count safely on the primary server thread
+            chunkMetricsTask = Bukkit.getScheduler().runTaskTimer(PLUGIN, () -> {
+                try {
+                    int count = 0;
+                    for (World w : Bukkit.getWorlds()) {
+                        count += w.getLoadedChunks().length;
+                    }
+                    cachedLoadedChunks = count;
+                } catch (Throwable ignore) {
+                }
+            }, 20L, 60L);
+
             Bukkit.getLogger().info(String.format(
                     "\u001B[32m[UniversePurpur] Web Admin Panel online at http://%s:%d (Auth Token: %s)\u001B[0m",
                     (host == null || host.equals("0.0.0.0")) ? "127.0.0.1" : host,
@@ -95,10 +111,17 @@ public final class UniverseWebPanel {
     public synchronized void stop() {
         if (server != null) {
             try {
-                server.stop(1);
+                server.stop(0);
             } catch (Throwable ignore) {
             }
             server = null;
+        }
+        if (chunkMetricsTask != null) {
+            try {
+                chunkMetricsTask.cancel();
+            } catch (Throwable ignore) {
+            }
+            chunkMetricsTask = null;
         }
         running = false;
     }
@@ -110,10 +133,9 @@ public final class UniverseWebPanel {
     private static boolean isAuthorized(HttpExchange exchange) {
         String token = UniversePurpurConfig.webPanelAuthToken;
         if (token == null || token.trim().isEmpty()) {
-            return true; // No auth required if token is empty
+            return true;
         }
 
-        // Check Authorization header: Bearer <token>
         String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String passed = authHeader.substring(7).trim();
@@ -122,7 +144,6 @@ public final class UniverseWebPanel {
             }
         }
 
-        // Check query parameter ?token=<token>
         String query = exchange.getRequestURI().getQuery();
         if (query != null) {
             for (String param : query.split("&")) {
@@ -161,7 +182,7 @@ public final class UniverseWebPanel {
 
     // --- Handlers ---
 
-    private static class StatusHandler implements HttpHandler {
+    private class StatusHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
@@ -187,10 +208,7 @@ public final class UniverseWebPanel {
 
             int onlinePlayers = Bukkit.getOnlinePlayers().size();
             int maxPlayers = Bukkit.getMaxPlayers();
-            int chunks = 0;
-            for (World w : Bukkit.getWorlds()) {
-                chunks += w.getLoadedChunks().length;
-            }
+            int chunks = cachedLoadedChunks;
 
             String json = String.format(java.util.Locale.ROOT, """
                     {
@@ -239,7 +257,7 @@ public final class UniverseWebPanel {
                     shield.getBlockedInvalidMovement(),
                     shield.getBlockedOversizedPayloads(),
                     shield.getBlockedInvalidSlots(),
-                    Bukkit.getPort(),
+                    Bukkit.getPort() > 0 ? Bukkit.getPort() : 25565,
                     UniversePurpurConfig.webPanelPort,
                     UniversePurpurConfig.geyserPort
             );
@@ -261,22 +279,37 @@ public final class UniverseWebPanel {
                 return;
             }
 
-            StringBuilder sb = new StringBuilder();
-            sb.append("{\"players\":[");
-            boolean first = true;
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                if (!first) sb.append(",");
-                first = false;
-                Location loc = p.getLocation();
-                String worldName = loc.getWorld() != null ? loc.getWorld().getName() : "world";
-                int ping = p.getPing();
-                sb.append(String.format(java.util.Locale.ROOT,
-                        "{\"name\":\"%s\",\"uuid\":\"%s\",\"world\":\"%s\",\"x\":%.1f,\"y\":%.1f,\"z\":%.1f,\"ping\":%d,\"health\":%.1f,\"op\":%b}",
-                        p.getName(), p.getUniqueId(), worldName, loc.getX(), loc.getY(), loc.getZ(), ping, p.getHealth(), p.isOp()));
-            }
-            sb.append("]}");
+            CompletableFuture<String> future = new CompletableFuture<>();
+            Bukkit.getScheduler().runTask(PLUGIN, () -> {
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("{\"players\":[");
+                    boolean first = true;
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        if (!first) sb.append(",");
+                        first = false;
+                        Location loc = p.getLocation();
+                        String worldName = loc.getWorld() != null ? loc.getWorld().getName() : "world";
+                        int ping = p.getPing();
+                        sb.append(String.format(java.util.Locale.ROOT,
+                                "{\"name\":\"%s\",\"uuid\":\"%s\",\"world\":\"%s\",\"x\":%.1f,\"y\":%.1f,\"z\":%.1f,\"ping\":%d,\"health\":%.1f,\"op\":%b}",
+                                p.getName(), p.getUniqueId(), worldName, loc.getX(), loc.getY(), loc.getZ(), ping, p.getHealth(), p.isOp()));
+                    }
+                    sb.append("]}");
+                    future.complete(sb.toString());
+                } catch (Throwable t) {
+                    future.completeExceptionally(t);
+                }
+            });
 
-            sendJsonResponse(exchange, 200, sb.toString());
+            String res;
+            try {
+                res = future.get(2, TimeUnit.SECONDS);
+            } catch (Throwable t) {
+                res = "{\"players\":[],\"error\":\"Failed to snapshot players safely\"}";
+            }
+
+            sendJsonResponse(exchange, 200, res);
         }
     }
 
@@ -299,7 +332,6 @@ public final class UniverseWebPanel {
             }
 
             String body = readRequestBody(exchange);
-            // Parse simple json fields: target, action, reason
             String target = extractJsonString(body, "target");
             String action = extractJsonString(body, "action");
             String reason = extractJsonString(body, "reason");
@@ -314,36 +346,58 @@ public final class UniverseWebPanel {
             final String fAction = action;
             final String fReason = reason;
 
-            Bukkit.getScheduler().runTask(new MinecraftInternalPlugin(), () -> {
-                Player player = Bukkit.getPlayerExact(fTarget);
-                if (player == null) {
-                    try {
-                        UUID uuid = UUID.fromString(fTarget);
-                        player = Bukkit.getPlayer(uuid);
-                    } catch (Throwable ignore) {
+            CompletableFuture<String> actionFuture = new CompletableFuture<>();
+            Bukkit.getScheduler().runTask(PLUGIN, () -> {
+                try {
+                    Player player = Bukkit.getPlayerExact(fTarget);
+                    if (player == null) {
+                        try {
+                            UUID uuid = UUID.fromString(fTarget);
+                            player = Bukkit.getPlayer(uuid);
+                        } catch (Throwable ignore) {
+                        }
                     }
-                }
 
-                if (fAction.equalsIgnoreCase("kick")) {
-                    if (player != null && player.isOnline()) {
-                        player.kick(Component.text(fReason));
+                    if (fAction.equalsIgnoreCase("kick")) {
+                        if (player != null && player.isOnline()) {
+                            player.kick(Component.text(fReason));
+                            actionFuture.complete("{\"success\":true,\"message\":\"Jugador " + fTarget + " expulsado exitosamente\"}");
+                        } else {
+                            actionFuture.complete("{\"success\":false,\"message\":\"Jugador " + fTarget + " no encontrado o desconectado\"}");
+                        }
+                    } else if (fAction.equalsIgnoreCase("ban")) {
+                        try {
+                            Bukkit.getBanList(BanList.Type.NAME).addBan(fTarget, fReason, null, "UniverseWebAdmin");
+                        } catch (Throwable ignore) {
+                        }
+                        if (player != null && player.isOnline()) {
+                            player.kick(Component.text("Baneado: " + fReason));
+                        }
+                        actionFuture.complete("{\"success\":true,\"message\":\"Jugador " + fTarget + " baneado exitosamente\"}");
+                    } else if (fAction.equalsIgnoreCase("op")) {
+                        if (player != null) {
+                            boolean newState = !player.isOp();
+                            player.setOp(newState);
+                            actionFuture.complete("{\"success\":true,\"message\":\"Rango OP de " + fTarget + " cambiado a " + newState + "\"}");
+                        } else {
+                            actionFuture.complete("{\"success\":false,\"message\":\"Jugador " + fTarget + " no encontrado\"}");
+                        }
+                    } else {
+                        actionFuture.complete("{\"success\":false,\"message\":\"Acción desconocida: " + fAction + "\"}");
                     }
-                } else if (fAction.equalsIgnoreCase("ban")) {
-                    try {
-                        Bukkit.getBanList(BanList.Type.NAME).addBan(fTarget, fReason, null, "UniverseWebAdmin");
-                    } catch (Throwable ignore) {
-                    }
-                    if (player != null && player.isOnline()) {
-                        player.kick(Component.text("Baneado: " + fReason));
-                    }
-                } else if (fAction.equalsIgnoreCase("op")) {
-                    if (player != null) {
-                        player.setOp(!player.isOp());
-                    }
+                } catch (Throwable t) {
+                    actionFuture.complete("{\"success\":false,\"error\":\"" + t.getMessage() + "\"}");
                 }
             });
 
-            sendJsonResponse(exchange, 200, "{\"success\":true,\"message\":\"Action executed\"}");
+            String resJson;
+            try {
+                resJson = actionFuture.get(3, TimeUnit.SECONDS);
+            } catch (Throwable t) {
+                resJson = "{\"success\":false,\"message\":\"Tiempo de espera agotado al ejecutar acción\"}";
+            }
+
+            sendJsonResponse(exchange, 200, resJson);
         }
     }
 
@@ -378,15 +432,25 @@ public final class UniverseWebPanel {
             }
 
             final String cmd = command.startsWith("/") ? command.substring(1) : command;
-            Bukkit.getScheduler().runTask(new MinecraftInternalPlugin(), () -> {
+            CompletableFuture<String> cmdFuture = new CompletableFuture<>();
+            Bukkit.getScheduler().runTask(PLUGIN, () -> {
                 try {
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                    cmdFuture.complete("{\"success\":true,\"dispatched\":\"" + cmd.replace("\"", "\\\"") + "\"}");
                 } catch (Throwable t) {
                     Bukkit.getLogger().log(Level.WARNING, "Error executing web console command: " + cmd, t);
+                    cmdFuture.complete("{\"success\":false,\"error\":\"" + (t.getMessage() != null ? t.getMessage().replace("\"", "\\\"") : "Error al ejecutar comando") + "\"}");
                 }
             });
 
-            sendJsonResponse(exchange, 200, "{\"success\":true,\"dispatched\":\"" + cmd.replace("\"", "\\\"") + "\"}");
+            String resJson;
+            try {
+                resJson = cmdFuture.get(3, TimeUnit.SECONDS);
+            } catch (Throwable t) {
+                resJson = "{\"success\":false,\"message\":\"Tiempo de espera agotado al despachar comando\"}";
+            }
+
+            sendJsonResponse(exchange, 200, resJson);
         }
     }
 
@@ -426,7 +490,7 @@ public final class UniverseWebPanel {
 
             if ("purge".equalsIgnoreCase(action) && value != null) {
                 final String target = value.toLowerCase();
-                Bukkit.getScheduler().runTask(new MinecraftInternalPlugin(), () -> {
+                Bukkit.getScheduler().runTask(PLUGIN, () -> {
                     for (World world : Bukkit.getWorlds()) {
                         if (target.equals("items")) {
                             for (Item i : world.getEntitiesByClass(Item.class)) i.remove();
@@ -460,6 +524,12 @@ public final class UniverseWebPanel {
     private static class StaticGuiHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            String path = exchange.getRequestURI().getPath();
+            if (!path.equals("/") && !path.equals("/index.html")) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Not Found\"}");
+                return;
+            }
+
             byte[] htmlBytes = DASHBOARD_HTML.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
             exchange.sendResponseHeaders(200, htmlBytes.length);
@@ -479,9 +549,21 @@ public final class UniverseWebPanel {
         }
         if (idx == -1) return null;
         int start = idx + pattern.length();
-        int end = json.indexOf("\"", start);
-        if (end == -1) return null;
-        return json.substring(start, end);
+        int end = start;
+        while (end < json.length()) {
+            char c = json.charAt(end);
+            if (c == '\\') {
+                end += 2;
+                continue;
+            }
+            if (c == '"') {
+                break;
+            }
+            end++;
+        }
+        if (end > json.length()) return null;
+        String val = json.substring(start, end);
+        return val.replace("\\\"", "\"").replace("\\\\", "\\").replace("\\n", "\n").replace("\\r", "\r");
     }
 
     // --- Embedded HTML / CSS / JS Single Page Application ---
@@ -768,9 +850,12 @@ public final class UniverseWebPanel {
     }
 
     async function playerAction(name, action) {
-      const reason = prompt('Razón para ' + action + ' a ' + name + ':', 'Expulsado por Administrador');
+      const reason = prompt('Razón para ' + action + ' a ' + name + ':', action === 'ban' ? 'Suspendido por administrador' : 'Expulsado por administrador');
       if (reason === null) return;
-      await apiRequest('/api/player/action', 'POST', { target: name, action, reason });
+      const res = await apiRequest('/api/player/action', 'POST', { target: name, action, reason });
+      if (res && res.message) {
+        alert(res.message);
+      }
       fetchPlayers();
       refreshStatus();
     }
@@ -789,7 +874,8 @@ public final class UniverseWebPanel {
       if (res && res.success) {
         log.innerHTML += `<br><span style="color:#8c90aa;">[Consola] Comando '${res.dispatched}' despachado al servidor.</span>`;
       } else {
-        log.innerHTML += `<br><span style="color:#ff1744;">[Error] No se pudo ejecutar el comando. Verifica permisos o token.</span>`;
+        const err = (res && (res.error || res.message)) ? (res.error || res.message) : 'Verifica permisos o token';
+        log.innerHTML += `<br><span style="color:#ff1744;">[Error] No se pudo ejecutar el comando (${err}).</span>`;
       }
       log.scrollTop = log.scrollHeight;
       refreshStatus();
