@@ -86,7 +86,7 @@ global:
     simulation-distance-cap: 3         # Strict simulation distance for massive player counts
     view-distance-cap: 6               # Visual distance (rendering only, minimal server tick load)
     async-chunk-io: true               # All chunk loading & generation run asynchronously
-    dirtySaveOnly: true                # Never re-save chunks that were not modified
+    dirty-save-only: true              # Never re-save chunks that were not modified
 
   # ---------------------------------------------------------------------------
   # Autosave & Disk I/O Throttling

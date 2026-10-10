@@ -44,7 +44,7 @@ public final class UniversePurpurConfig {
     public static boolean globalMobAiEnabled = true;
     public static boolean disablePassiveMobs = false;
     public static boolean disableHostileMobs = false;
-    public static boolean disableAmbientMobs = false;
+    public static boolean disableAmbientMobs = true;
     public static boolean disableWaterMobs = false;
     public static boolean disableBossMobs = false;
 
@@ -99,6 +99,9 @@ public final class UniversePurpurConfig {
     private UniversePurpurConfig() {}
 
     public static void init(File serverRootDir) {
+        if (serverRootDir == null) {
+            serverRootDir = new File(".");
+        }
         CONFIG_FILE = new File(serverRootDir, "universe-purpur.yml");
         config = new YamlConfiguration();
         try {
@@ -175,11 +178,11 @@ public final class UniversePurpurConfig {
         trackingRangeMonsters = getInt("global.network.tracking.range-monsters", trackingRangeMonsters);
         trackingRangeMisc = getInt("global.network.tracking.range-misc", trackingRangeMisc);
 
-        // Chunks & Storage
+        // Chunks & Storage (Supports both kebab-case and camelCase)
         simulationDistanceCap = getInt("global.chunks.simulation-distance-cap", simulationDistanceCap);
         viewDistanceCap = getInt("global.chunks.view-distance-cap", viewDistanceCap);
         asyncChunkIo = getBoolean("global.chunks.async-chunk-io", asyncChunkIo);
-        dirtySaveOnly = getBoolean("global.chunks.dirty-save-only", dirtySaveOnly);
+        dirtySaveOnly = getBoolean("global.chunks.dirty-save-only", getBoolean("global.chunks.dirtySaveOnly", dirtySaveOnly));
         autoSaveEnabled = getBoolean("global.data.autosave.enabled", autoSaveEnabled);
         autoSaveIntervalSeconds = getInt("global.data.autosave.interval-seconds", autoSaveIntervalSeconds);
         maxAutoSaveChunksPerTick = getInt("global.data.autosave.max-chunks-per-tick", maxAutoSaveChunksPerTick);
@@ -225,79 +228,106 @@ public final class UniversePurpurConfig {
     }
 
     public static boolean isWorldMobSpawningEnabled(String worldName) {
+        String worldPath = "world-rules." + worldName + ".mobs.global-spawning-enabled";
+        if (config != null && config.contains(worldPath)) {
+            return config.getBoolean(worldPath, globalMobSpawningEnabled);
+        }
         String preset = getWorldPreset(worldName);
-        boolean def = getBoolean("presets." + preset + ".mobs.global-spawning-enabled", globalMobSpawningEnabled);
-        return getBoolean("world-rules." + worldName + ".mobs.global-spawning-enabled", def);
+        return getBoolean("presets." + preset + ".mobs.global-spawning-enabled", globalMobSpawningEnabled);
     }
 
     public static boolean isWorldMobAiEnabled(String worldName) {
+        String worldPath = "world-rules." + worldName + ".mobs.global-ai-enabled";
+        if (config != null && config.contains(worldPath)) {
+            return config.getBoolean(worldPath, globalMobAiEnabled);
+        }
         String preset = getWorldPreset(worldName);
-        boolean def = getBoolean("presets." + preset + ".mobs.global-ai-enabled", globalMobAiEnabled);
-        return getBoolean("world-rules." + worldName + ".mobs.global-ai-enabled", def);
+        return getBoolean("presets." + preset + ".mobs.global-ai-enabled", globalMobAiEnabled);
     }
 
     public static int getWorldMaxCollisions(String worldName) {
+        String worldPath = "world-rules." + worldName + ".mobs.max-collisions-per-entity";
+        if (config != null && config.contains(worldPath)) {
+            return config.getInt(worldPath, maxCollisionsPerEntity);
+        }
         String preset = getWorldPreset(worldName);
-        int def = getInt("presets." + preset + ".mobs.max-collisions-per-entity", maxCollisionsPerEntity);
-        return getInt("world-rules." + worldName + ".mobs.max-collisions-per-entity", def);
+        return getInt("presets." + preset + ".mobs.max-collisions-per-entity", maxCollisionsPerEntity);
     }
 
     public static boolean isWorldPlayerCollisionsEnabled(String worldName) {
+        String worldPath = "world-rules." + worldName + ".mobs.player-collisions-enabled";
+        if (config != null && config.contains(worldPath)) {
+            return config.getBoolean(worldPath, playerCollisionsEnabled);
+        }
         String preset = getWorldPreset(worldName);
-        boolean def = getBoolean("presets." + preset + ".mobs.player-collisions-enabled", playerCollisionsEnabled);
-        return getBoolean("world-rules." + worldName + ".mobs.player-collisions-enabled", def);
+        return getBoolean("presets." + preset + ".mobs.player-collisions-enabled", playerCollisionsEnabled);
     }
 
     public static int getWorldSimulationDistance(String worldName) {
+        String worldPath = "world-rules." + worldName + ".chunks.simulation-distance";
         String preset = getWorldPreset(worldName);
         int def = getInt("presets." + preset + ".chunks.simulation-distance", simulationDistanceCap);
-        return Math.min(getInt("world-rules." + worldName + ".chunks.simulation-distance", def), simulationDistanceCap);
+        int val = (config != null && config.contains(worldPath)) ? config.getInt(worldPath, def) : def;
+        return Math.min(val, simulationDistanceCap);
     }
 
     public static int getWorldViewDistance(String worldName) {
+        String worldPath = "world-rules." + worldName + ".chunks.view-distance";
         String preset = getWorldPreset(worldName);
         int def = getInt("presets." + preset + ".chunks.view-distance", viewDistanceCap);
-        return Math.min(getInt("world-rules." + worldName + ".chunks.view-distance", def), viewDistanceCap);
+        int val = (config != null && config.contains(worldPath)) ? config.getInt(worldPath, def) : def;
+        return Math.min(val, viewDistanceCap);
     }
 
     public static int getWorldRandomTickSpeed(String worldName) {
+        String worldPath = "world-rules." + worldName + ".ticks.random-tick-speed";
+        if (config != null && config.contains(worldPath)) {
+            return config.getInt(worldPath, 1);
+        }
         String preset = getWorldPreset(worldName);
-        int def = getInt("presets." + preset + ".ticks.random-tick-speed", 1);
-        return getInt("world-rules." + worldName + ".ticks.random-tick-speed", def);
+        return getInt("presets." + preset + ".ticks.random-tick-speed", 1);
     }
 
     public static int getWorldMaxBlockUpdates(String worldName) {
+        String worldPath = "world-rules." + worldName + ".ticks.max-block-updates-per-tick";
+        if (config != null && config.contains(worldPath)) {
+            return config.getInt(worldPath, 6000);
+        }
         String preset = getWorldPreset(worldName);
-        int def = getInt("presets." + preset + ".ticks.max-block-updates-per-tick", 6000);
-        return getInt("world-rules." + worldName + ".ticks.max-block-updates-per-tick", def);
+        return getInt("presets." + preset + ".ticks.max-block-updates-per-tick", 6000);
     }
 
     public static int getWorldAutoSaveInterval(String worldName) {
         return getInt("world-rules." + worldName + ".data.autosave-interval-seconds", autoSaveIntervalSeconds);
     }
 
-    // --- Configuration Getters / Defaults ---
+    // --- Configuration Getters / Defaults (Null-Safe & Reliable) ---
     private static boolean getBoolean(String path, boolean def) {
+        if (config == null) return def;
         config.addDefault(path, def);
-        return config.getBoolean(path, config.getBoolean(path));
+        return config.getBoolean(path, def);
     }
 
     private static double getDouble(String path, double def) {
+        if (config == null) return def;
         config.addDefault(path, def);
-        return config.getDouble(path, config.getDouble(path));
+        return config.getDouble(path, def);
     }
 
     private static int getInt(String path, int def) {
+        if (config == null) return def;
         config.addDefault(path, def);
-        return config.getInt(path, config.getInt(path));
+        return config.getInt(path, def);
     }
 
     private static String getString(String path, String def) {
+        if (config == null) return def;
         config.addDefault(path, def);
-        return config.getString(path, config.getString(path));
+        return config.getString(path, def);
     }
 
     private static void save() {
+        if (CONFIG_FILE == null || config == null) return;
         try {
             config.save(CONFIG_FILE);
         } catch (IOException ex) {
