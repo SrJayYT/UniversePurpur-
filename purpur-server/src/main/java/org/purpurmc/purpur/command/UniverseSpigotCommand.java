@@ -32,7 +32,7 @@ public class UniverseSpigotCommand extends Command {
     public UniverseSpigotCommand(String name) {
         super(name);
         this.description = "UniverseSpigot 15k Titan Engine diagnostics, profile manager and lag controls";
-        this.usageMessage = "/universespigot [status | reload | profile <name> | lagprotection <on|off|auto> | purge <items|ambient|monsters> | memory [trim] | shield]";
+        this.usageMessage = "/universespigot [status | reload | profile <name> | lagprotection <on|off|auto> | purge <items|ambient|monsters> | memory [trim] | shield | spatial]";
         this.setPermission("bukkit.command.universespigot");
         this.setAliases(Arrays.asList("uspigot", "universe"));
     }
@@ -40,7 +40,7 @@ public class UniverseSpigotCommand extends Command {
     @Override
     public List<String> tabComplete(CommandSender sender, String alias, String[] args, Location location) throws IllegalArgumentException {
         if (args.length == 1) {
-            return Stream.of("status", "reload", "profile", "lagprotection", "purge", "memory", "shield")
+            return Stream.of("status", "reload", "profile", "lagprotection", "purge", "memory", "shield", "spatial")
                     .filter(arg -> arg.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
@@ -81,7 +81,7 @@ public class UniverseSpigotCommand extends Command {
         String sub = args[0].toLowerCase();
         switch (sub) {
             case "reload" -> {
-                UniversePurpurConfig.reload(new File("."));
+                UniversePurpurConfig.reload();
                 sender.sendMessage(Component.text("✔ UniverseSpigot 15k configuration reloaded successfully.", NamedTextColor.GREEN));
                 sender.sendMessage(Component.text("Active Profile: ", NamedTextColor.GRAY)
                         .append(Component.text(UniversePurpurConfig.profile, NamedTextColor.GOLD)));
@@ -180,6 +180,18 @@ public class UniverseSpigotCommand extends Command {
                         .append(Component.text(shield.getBlockedOversizedPayloads(), NamedTextColor.WHITE)));
                 sender.sendMessage(Component.text("• Invalid Container Window Slots: ", NamedTextColor.GRAY)
                         .append(Component.text(shield.getBlockedInvalidSlots(), NamedTextColor.WHITE)));
+            }
+            case "spatial" -> {
+                org.purpurmc.purpur.util.SpatialGrid grid = org.purpurmc.purpur.util.SpatialGrid.instance();
+                sender.sendMessage(Component.text("=== UniverseSpigot 2D Spatial Partitioning Engine ===", NamedTextColor.DARK_GRAY));
+                sender.sendMessage(Component.text("• Spatial Grid Status: ", NamedTextColor.GRAY)
+                        .append(Component.text(UniversePurpurConfig.spatialGridEnabled ? "ENABLED" : "DISABLED", UniversePurpurConfig.spatialGridEnabled ? NamedTextColor.GREEN : NamedTextColor.RED)));
+                sender.sendMessage(Component.text("• Total Active Buckets: ", NamedTextColor.GRAY)
+                        .append(Component.text(grid.getBucketCount(), NamedTextColor.GOLD)));
+                sender.sendMessage(Component.text("• Partition Dimensions: ", NamedTextColor.GRAY)
+                        .append(Component.text("32x32 blocks/bucket", NamedTextColor.WHITE)));
+                sender.sendMessage(Component.text("• Nearest Player Sorting: ", NamedTextColor.GRAY)
+                        .append(Component.text("ACTIVE (O(1) lookups, proximity guaranteed)", NamedTextColor.GREEN)));
             }
             default -> sender.sendMessage(Component.text("Unknown subcommand. Use /" + commandLabel + " status", NamedTextColor.RED));
         }

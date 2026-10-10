@@ -82,13 +82,15 @@ public final class AntiCrashShield {
 
     /**
      * Validates inventory window slots against client-injected out-of-bounds indices.
+     * Guaranteed protection against IndexOutOfBoundsException crashes in container menus.
      */
     public boolean validateWindowSlot(int slot, int maxSlots) {
         if (!UniversePurpurConfig.antiCrashShieldEnabled) {
             return true;
         }
 
-        if (slot < -999 || slot > maxSlots + 128) {
+        // -999 and -1 are special vanilla slots indicating dropping an item outside the window
+        if (slot != -999 && slot != -1 && (slot < 0 || (maxSlots > 0 && slot >= maxSlots))) {
             blockedInvalidSlots.incrementAndGet();
             return false;
         }

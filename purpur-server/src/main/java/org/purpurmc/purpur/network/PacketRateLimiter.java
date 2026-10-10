@@ -8,7 +8,7 @@ import org.purpurmc.purpur.task.UniverseGovernorTask;
 /**
  * Ultra-high-performance lock-free Packet Rate Limiter for massive server connections (+15,000 players).
  * Employs a CAS loop (Compare-And-Set) atomic token bucket algorithm to suppress crasher floods and packet storms
- * with zero lock contention and zero negative token underflow.
+ * with zero lock contention, precise micro-token refill, and zero negative token underflow.
  *
  * Author: DevPapo
  */
@@ -57,25 +57,30 @@ public final class PacketRateLimiter {
         }
 
         int baseRate = Math.max(10, UniversePurpurConfig.maxPacketsPerSecond);
-        int baseBurst = Math.max(baseRate, UniversePurpurConfig.packetBurstLimit);
+        int baseBurst = Math.max(10, UniversePurpurConfig.packetBurstLimit);
 
         // Adaptive Rate Limiting: If Governor is under high load (Level 3 or 4), tighten burst window
         if (UniversePurpurConfig.adaptiveRateLimiting) {
             int level = UniverseGovernorTask.instance().getThrottleLevel();
             if (level >= 4) {
-                baseRate = (int) (baseRate * 0.60D);
-                baseBurst = (int) (baseBurst * 0.50D);
+                baseRate = Math.max(10, (int) (baseRate * 0.60D));
+                baseBurst = Math.max(10, (int) (baseBurst * 0.50D));
             } else if (level >= 3) {
-                baseRate = (int) (baseRate * 0.80D);
-                baseBurst = (int) (baseBurst * 0.75D);
+                baseRate = Math.max(10, (int) (baseRate * 0.80D));
+                baseBurst = Math.max(10, (int) (baseBurst * 0.75D));
             }
         }
 
         // Proportional token refill: add tokens based on elapsed time without starving legitimate players
         long tokensToAdd = (elapsed * (long) baseRate) / 1000L;
-        if (tokensToAdd > 0 && lastRefillTimestamp.compareAndSet(last, now)) {
-            final int maxAllowed = baseBurst;
-            tokens.updateAndGet(current -> (int) Math.min(maxAllowed, current + tokensToAdd));
+        if (tokensToAdd > 0) {
+            long timeConsumed = (tokensToAdd * 1000L) / baseRate;
+            // Advance timestamp by consumed time to prevent fractional token loss, or advance to now if capped
+            long newTime = (tokens.get() >= baseBurst) ? now : (last + timeConsumed);
+            if (lastRefillTimestamp.compareAndSet(last, newTime)) {
+                final int maxAllowed = baseBurst;
+                tokens.updateAndGet(current -> (int) Math.min(maxAllowed, (long) current + tokensToAdd));
+            }
         }
     }
 
@@ -84,7 +89,7 @@ public final class PacketRateLimiter {
     }
 
     public void reset() {
-        tokens.set(UniversePurpurConfig.packetBurstLimit);
+        tokens.set(Math.max(10, UniversePurpurConfig.packetBurstLimit));
         lastRefillTimestamp.set(System.currentTimeMillis());
         totalDroppedPackets.set(0);
     }

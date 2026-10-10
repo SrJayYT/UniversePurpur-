@@ -24,6 +24,7 @@ public final class UniversePurpurConfig {
             =============================================================================
             """;
 
+    private static File SERVER_ROOT_DIR;
     private static File CONFIG_FILE;
     public static YamlConfiguration config;
 
@@ -110,8 +111,9 @@ public final class UniversePurpurConfig {
 
     public static void init(File serverRootDir) {
         if (serverRootDir == null) {
-            serverRootDir = new File(".");
+            serverRootDir = (SERVER_ROOT_DIR != null) ? SERVER_ROOT_DIR : new File(".");
         }
+        SERVER_ROOT_DIR = serverRootDir;
         CONFIG_FILE = new File(serverRootDir, "universe-purpur.yml");
         config = new YamlConfiguration();
         try {
@@ -137,8 +139,12 @@ public final class UniversePurpurConfig {
         }
     }
 
+    public static void reload() {
+        init(SERVER_ROOT_DIR);
+    }
+
     public static void reload(File serverRootDir) {
-        init(serverRootDir);
+        init(serverRootDir != null ? serverRootDir : SERVER_ROOT_DIR);
     }
 
     public static void setProfile(String newProfile) {
@@ -233,6 +239,10 @@ public final class UniversePurpurConfig {
     }
 
     public static boolean isEmergencyLag(double currentMspt) {
+        Boolean override = org.purpurmc.purpur.task.UniverseGovernorTask.instance().getManualEmergencyOverride();
+        if (override != null) {
+            return override;
+        }
         return emergencyLagProtection && (currentMspt >= hardLimitMspt);
     }
 

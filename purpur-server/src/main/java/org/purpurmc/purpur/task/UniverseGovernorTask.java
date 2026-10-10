@@ -84,11 +84,12 @@ public class UniverseGovernorTask implements Runnable {
         }
 
         double target = UniversePurpurConfig.targetMspt;
-        double hardLimit = UniversePurpurConfig.hardLimitMspt;
+        double hardLimit = Math.max(target + 1.0D, UniversePurpurConfig.hardLimitMspt);
+        double level3Threshold = target + (hardLimit - target) * 0.65D;
 
         if (currentMspt >= hardLimit) {
             this.throttleLevel = 4; // Hyper-Scale Lockdown
-        } else if (currentMspt >= (hardLimit - 2.0D)) {
+        } else if (currentMspt >= level3Threshold) {
             this.throttleLevel = 3; // Aggressive Culling
         } else if (currentMspt >= target) {
             this.throttleLevel = 2; // Moderate Throttle

@@ -2,10 +2,13 @@ package org.purpurmc.purpur.util;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
@@ -14,28 +17,59 @@ import org.bukkit.entity.Player;
  * Replaces O(N) linear entity scans with O(1) hash bucket lookups for nearby players and entities,
  * eliminating the CPU bottleneck in mega-scale player tracking and culling.
  *
- * Thread-safe with cross-world distance exception protection.
+ * Thread-safe with multi-world partitioning and true nearest-player distance sorting.
  * Author: DevPapo
  */
 public final class SpatialGrid {
     private static final int BUCKET_SIZE = 32; // 32x32 block spatial partition
-    private final Map<Long, List<Entity>> buckets = new ConcurrentHashMap<>();
+    private static final SpatialGrid INSTANCE = new SpatialGrid();
+
+    // Multi-world bucket mapping: World UUID -> (Bucket Key -> Entities)
+    private final Map<UUID, Map<Long, List<Entity>>> worldBuckets = new ConcurrentHashMap<>();
+
+    public SpatialGrid() {}
+
+    public static SpatialGrid instance() {
+        return INSTANCE;
+    }
 
     private static long bucketKey(int blockX, int blockZ) {
         int gx = blockX >> 5; // division by 32
         int gz = blockZ >> 5;
-        return (((long) gx) << 32) | (gz & 0xFFFFFFFFL);
+        return (((long) gx & 0xFFFFFFFFL) << 32) | ((long) gz & 0xFFFFFFFFL);
+    }
+
+    private Map<Long, List<Entity>> getOrCreateWorldMap(UUID worldUid) {
+        return worldBuckets.computeIfAbsent(worldUid, u -> new ConcurrentHashMap<>());
     }
 
     /**
-     * Clears and repopulates the grid with current world entities.
-     * Thread-safe with synchronized bucket lists.
+     * Updates spatial partitioning for entities in a specific world.
      */
-    public void updateWorldEntities(Iterable<? extends Entity> entities) {
+    public void updateWorldEntities(World world, Iterable<? extends Entity> entities) {
+        if (world == null || entities == null) return;
+        Map<Long, List<Entity>> buckets = getOrCreateWorldMap(world.getUID());
         buckets.clear();
         for (Entity entity : entities) {
             if (!entity.isValid()) continue;
             Location loc = entity.getLocation();
+            if (loc.getWorld() == null || !loc.getWorld().equals(world)) continue;
+            long key = bucketKey(loc.getBlockX(), loc.getBlockZ());
+            buckets.computeIfAbsent(key, k -> Collections.synchronizedList(new ArrayList<>(8))).add(entity);
+        }
+    }
+
+    /**
+     * Backward-compatible update for general entity collections.
+     */
+    public void updateWorldEntities(Iterable<? extends Entity> entities) {
+        if (entities == null) return;
+        for (Entity entity : entities) {
+            if (!entity.isValid()) continue;
+            Location loc = entity.getLocation();
+            World w = loc.getWorld();
+            if (w == null) continue;
+            Map<Long, List<Entity>> buckets = getOrCreateWorldMap(w.getUID());
             long key = bucketKey(loc.getBlockX(), loc.getBlockZ());
             buckets.computeIfAbsent(key, k -> Collections.synchronizedList(new ArrayList<>(8))).add(entity);
         }
@@ -43,15 +77,21 @@ public final class SpatialGrid {
 
     /**
      * Finds nearby players in neighboring buckets in O(1) time without iterating the entire server.
-     * Guarded against cross-world distance measurement crashes.
+     * Guaranteed nearest-player sorting so players in immediate vicinity are never culled.
      *
      * @param center Source player location
      * @param radiusBlock Distance radius in blocks
      * @param maxResults Maximum number of players to return (culling cap)
-     * @return List of nearby players sorted by distance
+     * @return List of nearby players sorted by proximity to center
      */
     public List<Player> getNearbyPlayers(Location center, int radiusBlock, int maxResults) {
-        if (center == null || center.getWorld() == null || maxResults <= 0) {
+        if (center == null || center.getWorld() == null || maxResults <= 0 || radiusBlock <= 0) {
+            return Collections.emptyList();
+        }
+
+        World world = center.getWorld();
+        Map<Long, List<Entity>> buckets = worldBuckets.get(world.getUID());
+        if (buckets == null || buckets.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -61,11 +101,11 @@ public final class SpatialGrid {
         int maxZ = (center.getBlockZ() + radiusBlock) >> 5;
 
         double radiusSq = (double) radiusBlock * radiusBlock;
-        List<Player> results = new ArrayList<>(Math.min(maxResults, 64));
+        List<Player> candidates = new ArrayList<>(Math.min(maxResults * 2, 128));
 
         for (int gx = minX; gx <= maxX; gx++) {
             for (int gz = minZ; gz <= maxZ; gz++) {
-                long key = (((long) gx) << 32) | (gz & 0xFFFFFFFFL);
+                long key = (((long) gx & 0xFFFFFFFFL) << 32) | ((long) gz & 0xFFFFFFFFL);
                 List<Entity> bucket = buckets.get(key);
                 if (bucket == null) continue;
 
@@ -74,14 +114,11 @@ public final class SpatialGrid {
                         if (entity instanceof Player player && player.isOnline()) {
                             Location pLoc = player.getLocation();
                             // Guard against cross-world IllegalArgumentException
-                            if (pLoc.getWorld() == null || !pLoc.getWorld().equals(center.getWorld())) {
+                            if (pLoc.getWorld() == null || !pLoc.getWorld().equals(world)) {
                                 continue;
                             }
                             if (pLoc.distanceSquared(center) <= radiusSq) {
-                                results.add(player);
-                                if (results.size() >= maxResults) {
-                                    return results;
-                                }
+                                candidates.add(player);
                             }
                         }
                     }
@@ -89,14 +126,26 @@ public final class SpatialGrid {
             }
         }
 
-        return results;
+        if (candidates.size() <= maxResults) {
+            return candidates;
+        }
+
+        // Sort candidates by proximity to center to ensure closest players are prioritized
+        candidates.sort(Comparator.comparingDouble(p -> p.getLocation().distanceSquared(center)));
+        return new ArrayList<>(candidates.subList(0, maxResults));
     }
 
     public int getBucketCount() {
-        return buckets.size();
+        return worldBuckets.values().stream().mapToInt(Map::size).sum();
+    }
+
+    public void clear(World world) {
+        if (world != null) {
+            worldBuckets.remove(world.getUID());
+        }
     }
 
     public void clear() {
-        buckets.clear();
+        worldBuckets.clear();
     }
 }

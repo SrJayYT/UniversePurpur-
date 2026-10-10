@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.scheduler.BukkitTask;
 import org.purpurmc.purpur.UniversePurpurConfig;
@@ -16,7 +17,8 @@ import org.purpurmc.purpur.util.MinecraftInternalPlugin;
 /**
  * Intelligent Memory Governor & Auto-Garbage Healer for UniverseSpigot (+15,000 Players).
  * Monitors JVM heap saturation and GC pause times in real time, automatically pruning
- * volatile world caches and entity buffers before Stop-The-World GC spikes can occur.
+ * volatile world caches, unloaded chunk data, and requesting JVM memory reclamation
+ * before Stop-The-World GC spikes can occur.
  *
  * Thread-safe with AsyncCatcher-compliant synchronous dispatch for Bukkit world operations.
  * Author: DevPapo
@@ -86,8 +88,9 @@ public final class UniverseMemoryGovernor implements Runnable {
             double threshold = UniversePurpurConfig.memoryTrimThresholdPercent;
             if (UniversePurpurConfig.memoryAutoTrimEnabled && heapUsagePercent >= threshold) {
                 long now = System.currentTimeMillis();
+                long last = lastTrimTimestamp.get();
                 // Cooldown: at most once every 60 seconds
-                if (now - lastTrimTimestamp.get() >= 60000L && lastTrimTimestamp.compareAndSet(lastTrimTimestamp.get(), now)) {
+                if (now - last >= 60000L && lastTrimTimestamp.compareAndSet(last, now)) {
                     triggerAsyncSafeTrim();
                 }
             }
@@ -117,9 +120,17 @@ public final class UniverseMemoryGovernor implements Runnable {
 
         try {
             for (World world : Bukkit.getWorlds()) {
-                int count = world.getLoadedChunks().length;
-                freedChunks += count;
+                Chunk[] loaded = world.getLoadedChunks();
+                for (Chunk chunk : loaded) {
+                    if (world.getPlayerCount() == 0 && !chunk.isEntitiesLoaded()) {
+                        if (world.unloadChunk(chunk)) {
+                            freedChunks++;
+                        }
+                    }
+                }
             }
+            // Explicit concurrent GC invitation to JVM runtime
+            System.gc();
         } catch (Throwable ignore) {
         }
 

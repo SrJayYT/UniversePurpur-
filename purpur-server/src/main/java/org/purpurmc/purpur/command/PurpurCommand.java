@@ -49,7 +49,7 @@ public class PurpurCommand extends Command {
 
             MinecraftServer console = MinecraftServer.getServer();
             PurpurConfig.init((File) console.options.valueOf("purpur-settings"));
-            UniversePurpurConfig.reload(new File("."));
+            UniversePurpurConfig.reload();
             for (ServerLevel level : console.getAllLevels()) {
                 level.purpurConfig.init();
                 level.resetBreedingCooldowns(); // Purpur - Add adjustable breeding cooldown to config
