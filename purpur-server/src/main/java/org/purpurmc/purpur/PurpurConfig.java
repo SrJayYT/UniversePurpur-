@@ -75,6 +75,10 @@ public class PurpurConfig {
         commands.put("purpur", new PurpurCommand("purpur"));
         commands.put("universespigot", new org.purpurmc.purpur.command.UniverseSpigotCommand("universespigot"));
         commands.put("link", new org.purpurmc.purpur.command.UniverseLinkCommand("link"));
+        commands.put("version", new org.purpurmc.purpur.command.UniverseVersionCommand("version"));
+        commands.put("plugins", new org.purpurmc.purpur.command.UniversePluginsCommand("plugins"));
+        commands.put("help", new org.purpurmc.purpur.command.UniverseHelpCommand("help"));
+        commands.put("tps", new org.purpurmc.purpur.command.UniverseTpsCommand("tps"));
 
         version = getInt("config-version", 48);
         set("config-version", 48);
@@ -98,6 +102,41 @@ public class PurpurConfig {
     public static void registerCommands() {
         for (Map.Entry<String, Command> entry : commands.entrySet()) {
             MinecraftServer.getServer().server.getCommandMap().register(entry.getKey(), "Purpur", entry.getValue());
+        }
+        try {
+            org.bukkit.command.SimpleCommandMap commandMap = MinecraftServer.getServer().server.getCommandMap();
+            Map<String, Command> known = commandMap.getKnownCommands();
+            Command verCmd = commands.get("version");
+            if (verCmd != null) {
+                known.put("version", verCmd);
+                known.put("ver", verCmd);
+                known.put("about", verCmd);
+                known.put("bukkit:version", verCmd);
+                known.put("bukkit:ver", verCmd);
+                known.put("bukkit:about", verCmd);
+            }
+            Command plCmd = commands.get("plugins");
+            if (plCmd != null) {
+                known.put("plugins", plCmd);
+                known.put("pl", plCmd);
+                known.put("bukkit:plugins", plCmd);
+                known.put("bukkit:pl", plCmd);
+            }
+            Command helpCmd = commands.get("help");
+            if (helpCmd != null) {
+                known.put("help", helpCmd);
+                known.put("?", helpCmd);
+                known.put("bukkit:help", helpCmd);
+                known.put("bukkit:?", helpCmd);
+            }
+            Command tpsCmd = commands.get("tps");
+            if (tpsCmd != null) {
+                known.put("tps", tpsCmd);
+                known.put("lag", tpsCmd);
+                known.put("mspt", tpsCmd);
+                known.put("bukkit:tps", tpsCmd);
+            }
+        } catch (Throwable ignore) {
         }
     }
 

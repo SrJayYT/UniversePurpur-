@@ -152,6 +152,47 @@ public final class UniversePurpurConfig {
             org.purpurmc.purpur.task.UniverseMemoryGovernor.instance().start();
             org.purpurmc.purpur.web.UniverseWebPanel.instance().start();
             org.purpurmc.purpur.util.UniverseBanner.print();
+            registerEnhancedCommands();
+            try {
+                org.bukkit.Bukkit.getScheduler().runTask(new org.purpurmc.purpur.util.MinecraftInternalPlugin(), UniversePurpurConfig::registerEnhancedCommands);
+            } catch (Throwable ignore) {
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    public static void registerEnhancedCommands() {
+        try {
+            org.bukkit.command.CommandMap map = org.bukkit.Bukkit.getCommandMap();
+            if (map instanceof org.bukkit.command.SimpleCommandMap simpleMap) {
+                java.util.Map<String, org.bukkit.command.Command> known = simpleMap.getKnownCommands();
+                org.purpurmc.purpur.command.UniverseVersionCommand verCmd = new org.purpurmc.purpur.command.UniverseVersionCommand("version");
+                org.purpurmc.purpur.command.UniversePluginsCommand plCmd = new org.purpurmc.purpur.command.UniversePluginsCommand("plugins");
+                org.purpurmc.purpur.command.UniverseHelpCommand helpCmd = new org.purpurmc.purpur.command.UniverseHelpCommand("help");
+                org.purpurmc.purpur.command.UniverseTpsCommand tpsCmd = new org.purpurmc.purpur.command.UniverseTpsCommand("tps");
+
+                known.put("version", verCmd);
+                known.put("ver", verCmd);
+                known.put("about", verCmd);
+                known.put("bukkit:version", verCmd);
+                known.put("bukkit:ver", verCmd);
+                known.put("bukkit:about", verCmd);
+
+                known.put("plugins", plCmd);
+                known.put("pl", plCmd);
+                known.put("bukkit:plugins", plCmd);
+                known.put("bukkit:pl", plCmd);
+
+                known.put("help", helpCmd);
+                known.put("?", helpCmd);
+                known.put("bukkit:help", helpCmd);
+                known.put("bukkit:?", helpCmd);
+
+                known.put("tps", tpsCmd);
+                known.put("lag", tpsCmd);
+                known.put("mspt", tpsCmd);
+                known.put("bukkit:tps", tpsCmd);
+            }
         } catch (Throwable ignore) {
         }
     }

@@ -36,8 +36,8 @@ public class PurpurVersionFetcher implements VersionFetcher {
     private static final Logger LOGGER = LogUtils.getClassLogger();
     private static final int DISTANCE_ERROR = -1;
     private static final int DISTANCE_UNKNOWN = -2;
-    private static final String DOWNLOAD_PAGE = "https://purpurmc.org/downloads";
-    private static final String REPOSITORY = "PurpurMC/Purpur";
+    private static final String DOWNLOAD_PAGE = "https://github.com/SrJayYT/UniversePurpur-/releases";
+    private static final String REPOSITORY = "SrJayYT/UniversePurpur-";
     private static final ServerBuildInfo BUILD_INFO;
     private static final String USER_AGENT;
     private static final Gson GSON = new Gson();
