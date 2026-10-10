@@ -8,9 +8,9 @@ echo  Author: DevPapo
 echo  Engine: Dynamic MSPT Governor ^| Generational ZGC ^| Netty Packet Throttle
 echo ===============================================================================
 
-:: Java Heap Settings (Adjust -Xms / -Xmx based on your available host RAM)
-set MIN_RAM=16G
-set MAX_RAM=32G
+:: Java Heap Settings (For +15k players: 32G - 64G recommended based on host RAM)
+set MIN_RAM=32G
+set MAX_RAM=48G
 
 :: Jar File Name
 set JAR_FILE=universepurpur.jar

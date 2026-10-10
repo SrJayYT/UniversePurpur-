@@ -81,14 +81,14 @@ public class UniverseSpigotCommand extends Command {
             }
             case "profile" -> {
                 if (args.length < 2) {
-                    sender.sendMessage(Component.text("Usage: /universespigot profile <10k-hub | 10k-minigames | 10k-survival>", NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Usage: /universespigot profile <15k-hyper-hub | 15k-mega-arena | 15k-scale-smp | 10k-hub>", NamedTextColor.RED));
                     return false;
                 }
                 String targetProfile = args[1].toLowerCase();
-                UniversePurpurConfig.profile = targetProfile;
-                sender.sendMessage(Component.text("✔ Dynamic profile switched to: ", NamedTextColor.GREEN)
+                UniversePurpurConfig.setProfile(targetProfile);
+                sender.sendMessage(Component.text("✔ Dynamic profile switched and saved: ", NamedTextColor.GREEN)
                         .append(Component.text(targetProfile, NamedTextColor.GOLD)));
-                sender.sendMessage(Component.text("New settings will take effect immediately across all tracked worlds.", NamedTextColor.GRAY));
+                sender.sendMessage(Component.text("New settings have taken effect immediately across all tracked worlds.", NamedTextColor.GRAY));
             }
             case "lagprotection" -> {
                 if (args.length < 2) {

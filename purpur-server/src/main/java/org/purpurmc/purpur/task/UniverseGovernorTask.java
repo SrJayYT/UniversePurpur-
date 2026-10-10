@@ -1,7 +1,7 @@
 package org.purpurmc.purpur.task;
 
 import org.bukkit.Bukkit;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 import org.purpurmc.purpur.UniversePurpurConfig;
 import org.purpurmc.purpur.util.MinecraftInternalPlugin;
 
@@ -9,22 +9,23 @@ import org.purpurmc.purpur.util.MinecraftInternalPlugin;
  * 5-Tier Hyper-Scale Dynamic MSPT Governor and Lag Mitigation Engine for UniverseSpigot (+15,000 Players).
  * Continuously computes real-time MSPT/TPS metrics and enforces multi-level autonomous throttling.
  *
+ * Thread-safe, volatile metrics with safe restartable BukkitTask scheduling.
  * Author: DevPapo
  */
-public class UniverseGovernorTask extends BukkitRunnable {
+public class UniverseGovernorTask implements Runnable {
     private static UniverseGovernorTask instance;
-    private boolean started = false;
+    private BukkitTask scheduledTask = null;
 
-    // 5-Tier Hyper-Scale Levels:
+    // 5-Tier Hyper-Scale Levels (volatile for cross-thread Netty / Server Thread visibility):
     // 0: OPTIMAL              - MSPT < 30.0ms (Pristine, 20.0 TPS full fidelity)
     // 1: SOFT THROTTLE        - MSPT 30.0ms - 38.0ms (Soft DAB brain throttle for distant entities)
     // 2: MODERATE THROTTLE    - MSPT 38.0ms - 44.0ms (Freeze inactive item ticks, defer block physics)
     // 3: AGGRESSIVE CULLING   - MSPT 44.0ms - 46.0ms (Cap player tracking distance to 20 blocks, tighten packet rates)
     // 4: HYPER-SCALE LOCKDOWN - MSPT >= 46.0ms (Lockdown: suppress cosmetic packets, skip non-player ticks)
-    private int throttleLevel = 0;
-    private double currentMspt = 0.0D;
-    private double currentTps = 20.0D;
-    private Boolean manualEmergencyOverride = null;
+    private volatile int throttleLevel = 0;
+    private volatile double currentMspt = 0.0D;
+    private volatile double currentTps = 20.0D;
+    private volatile Boolean manualEmergencyOverride = null;
 
     private UniverseGovernorTask() {}
 
@@ -35,17 +36,25 @@ public class UniverseGovernorTask extends BukkitRunnable {
         return instance;
     }
 
-    public void start() {
+    public synchronized void start() {
         stop();
-        this.runTaskTimerAsynchronously(new MinecraftInternalPlugin(), 20L, 20L);
-        started = true;
+        this.scheduledTask = Bukkit.getScheduler().runTaskTimerAsynchronously(
+                new MinecraftInternalPlugin(),
+                this,
+                20L,
+                20L
+        );
     }
 
-    public void stop() {
-        if (started) {
-            cancel();
-            started = false;
+    public synchronized void stop() {
+        if (this.scheduledTask != null) {
+            this.scheduledTask.cancel();
+            this.scheduledTask = null;
         }
+    }
+
+    public synchronized boolean isRunning() {
+        return this.scheduledTask != null && !this.scheduledTask.isCancelled();
     }
 
     @Override
@@ -74,8 +83,8 @@ public class UniverseGovernorTask extends BukkitRunnable {
             return;
         }
 
-        double target = UniversePurpurConfig.targetMspt;     // default: 38.0 ms
-        double hardLimit = UniversePurpurConfig.hardLimitMspt; // default: 46.0 ms
+        double target = UniversePurpurConfig.targetMspt;
+        double hardLimit = UniversePurpurConfig.hardLimitMspt;
 
         if (currentMspt >= hardLimit) {
             this.throttleLevel = 4; // Hyper-Scale Lockdown

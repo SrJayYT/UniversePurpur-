@@ -4,8 +4,8 @@
 #  Author: DevPapo
 # ===============================================================================
 
-MIN_RAM="16G"
-MAX_RAM="32G"
+MIN_RAM="32G"
+MAX_RAM="48G"
 
 # Locate executable JAR
 JAR_FILE="universepurpur.jar"

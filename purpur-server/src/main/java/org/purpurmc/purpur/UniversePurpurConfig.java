@@ -123,10 +123,22 @@ public final class UniversePurpurConfig {
 
         readDefaultsAndValues();
         save();
+        try {
+            org.purpurmc.purpur.task.UniverseGovernorTask.instance().start();
+        } catch (Throwable ignore) {
+        }
     }
 
     public static void reload(File serverRootDir) {
         init(serverRootDir);
+    }
+
+    public static void setProfile(String newProfile) {
+        profile = newProfile;
+        if (config != null) {
+            config.set("profile", newProfile);
+            save();
+        }
     }
 
     private static void readDefaultsAndValues() {
@@ -280,7 +292,7 @@ public final class UniversePurpurConfig {
         String preset = getWorldPreset(worldName);
         int def = getInt("presets." + preset + ".chunks.simulation-distance", simulationDistanceCap);
         int val = (config != null && config.contains(worldPath)) ? config.getInt(worldPath, def) : def;
-        return Math.min(val, simulationDistanceCap);
+        return Math.max(2, Math.min(val, simulationDistanceCap));
     }
 
     public static int getWorldViewDistance(String worldName) {
@@ -288,14 +300,15 @@ public final class UniversePurpurConfig {
         String preset = getWorldPreset(worldName);
         int def = getInt("presets." + preset + ".chunks.view-distance", viewDistanceCap);
         int val = (config != null && config.contains(worldPath)) ? config.getInt(worldPath, def) : def;
-        return Math.min(val, viewDistanceCap);
+        return Math.max(2, Math.min(val, viewDistanceCap));
     }
 
     public static int getWorldMaxVisiblePlayers(String worldName) {
         String worldPath = "world-rules." + worldName + ".tracking.max-visible-players-per-client";
         String preset = getWorldPreset(worldName);
         int def = getInt("presets." + preset + ".tracking.max-visible-players-per-client", maxVisiblePlayersPerClient);
-        return (config != null && config.contains(worldPath)) ? config.getInt(worldPath, def) : def;
+        int val = (config != null && config.contains(worldPath)) ? config.getInt(worldPath, def) : def;
+        return Math.max(4, val);
     }
 
     public static int getWorldRandomTickSpeed(String worldName) {

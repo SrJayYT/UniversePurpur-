@@ -7,8 +7,8 @@ import org.purpurmc.purpur.task.UniverseGovernorTask;
 
 /**
  * Ultra-high-performance lock-free Packet Rate Limiter for massive server connections (+15,000 players).
- * Employs an adaptive proportional atomic token bucket algorithm to suppress crasher floods and packet storms
- * while preventing packet starvation for regular players.
+ * Employs a CAS loop (Compare-And-Set) atomic token bucket algorithm to suppress crasher floods and packet storms
+ * with zero lock contention and zero negative token underflow.
  *
  * Author: DevPapo
  */
@@ -25,6 +25,8 @@ public final class PacketRateLimiter {
 
     /**
      * Checks if an incoming network packet is allowed through the pipeline.
+     * Uses a lock-free CAS loop to avoid race conditions or negative token underflows.
+     *
      * @return true if packet is accepted; false if it exceeded packet rate threshold.
      */
     public boolean checkPacket() {
@@ -34,13 +36,16 @@ public final class PacketRateLimiter {
 
         refillTokens();
 
-        if (tokens.decrementAndGet() >= 0) {
-            return true;
-        } else {
-            tokens.incrementAndGet();
-            totalDroppedPackets.incrementAndGet();
-            return false;
-        }
+        int current;
+        do {
+            current = tokens.get();
+            if (current <= 0) {
+                totalDroppedPackets.incrementAndGet();
+                return false;
+            }
+        } while (!tokens.compareAndSet(current, current - 1));
+
+        return true;
     }
 
     private void refillTokens() {
