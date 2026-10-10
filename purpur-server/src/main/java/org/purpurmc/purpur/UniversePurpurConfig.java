@@ -30,7 +30,7 @@ public final class UniversePurpurConfig {
 
     // --- Global Runtime Flags ---
     public static boolean enabled = true;
-    public static String profile = "15k-hyper-scale";
+    public static String profile = "ultra-low-ram-cpu";
 
     // --- Dynamic MSPT & Tick Throttling (5-Tier Hyper-Scale Governor) ---
     public static boolean dynamicThrottle = true;
@@ -104,8 +104,11 @@ public final class UniversePurpurConfig {
     // --- Titan Hyper-Scale Modules (+15,000 Players) ---
     public static boolean spatialGridEnabled = true;
     public static boolean memoryAutoTrimEnabled = true;
-    public static double memoryTrimThresholdPercent = 85.0D;
+    public static double memoryTrimThresholdPercent = 65.0D;
+    public static boolean aggressiveMemorySaver = true;
     public static boolean antiCrashShieldEnabled = true;
+    public static boolean idleHibernationEnabled = true;
+    public static int idleHibernationTimeoutSeconds = 10;
 
     // --- Web Admin Panel & Port Infrastructure (2 Default Ports: 25565 Java, 25566 Web; 3 if Geyser: 19132) ---
     public static boolean webPanelEnabled = true;
@@ -152,6 +155,7 @@ public final class UniversePurpurConfig {
 
         readDefaultsAndValues();
         save();
+        optimizeServerProperties(serverRootDir);
         try {
             org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.init(serverRootDir);
             org.purpurmc.purpur.task.UniverseGovernorTask.instance().start();
@@ -162,6 +166,34 @@ public final class UniversePurpurConfig {
             try {
                 org.bukkit.Bukkit.getScheduler().runTask(new org.purpurmc.purpur.util.MinecraftInternalPlugin(), UniversePurpurConfig::registerEnhancedCommands);
             } catch (Throwable ignore) {
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    public static void optimizeServerProperties(File serverRootDir) {
+        try {
+            File propFile = new File(serverRootDir, "server.properties");
+            if (propFile.exists()) {
+                java.util.Properties props = new java.util.Properties();
+                try (java.io.FileInputStream in = new java.io.FileInputStream(propFile)) {
+                    props.load(in);
+                }
+                boolean modified = false;
+                if (!"0".equals(props.getProperty("spawn-chunk-radius"))) {
+                    props.setProperty("spawn-chunk-radius", "0");
+                    modified = true;
+                }
+                if (!"false".equals(props.getProperty("sync-chunk-writes"))) {
+                    props.setProperty("sync-chunk-writes", "false");
+                    modified = true;
+                }
+                if (modified) {
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(propFile)) {
+                        props.store(out, "UniversePurpur Ultra-Low RAM & CPU Configuration");
+                    }
+                    Bukkit.getLogger().info("[UniverseTitan] server.properties optimizado: spawn-chunk-radius=0 (RAM minima en reposo).");
+                }
             }
         } catch (Throwable ignore) {
         }
@@ -210,8 +242,6 @@ public final class UniversePurpurConfig {
     public static void reload(File serverRootDir) {
         init(serverRootDir != null ? serverRootDir : SERVER_ROOT_DIR);
     }
-
-    public static boolean aggressiveMemorySaver = true;
 
     public static void setProfile(String newProfile) {
         profile = newProfile;
@@ -318,6 +348,8 @@ public final class UniversePurpurConfig {
         memoryAutoTrimEnabled = getBoolean("global.performance.memory-auto-trim.enabled", memoryAutoTrimEnabled);
         memoryTrimThresholdPercent = getDouble("global.performance.memory-auto-trim.threshold-percent", memoryTrimThresholdPercent);
         aggressiveMemorySaver = getBoolean("global.performance.aggressive-memory-saver", aggressiveMemorySaver);
+        idleHibernationEnabled = getBoolean("global.performance.idle-hibernation.enabled", idleHibernationEnabled);
+        idleHibernationTimeoutSeconds = getInt("global.performance.idle-hibernation.timeout-seconds", idleHibernationTimeoutSeconds);
         antiCrashShieldEnabled = getBoolean("global.security.anti-crash-shield.enabled", antiCrashShieldEnabled);
 
 

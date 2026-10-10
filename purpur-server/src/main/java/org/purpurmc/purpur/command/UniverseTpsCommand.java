@@ -93,6 +93,12 @@ public class UniverseTpsCommand extends Command {
                 .append(Component.text(chunks + " Chunks Cargados (O(1))", NamedTextColor.WHITE));
         sender.sendMessage(worldLine);
 
+        if (org.purpurmc.purpur.task.UniverseMemoryGovernor.instance().isHibernating()) {
+            sender.sendMessage(Component.text(" • Estado de Reposo: ", NamedTextColor.GRAY)
+                    .append(Component.text("HIBERNACIÓN PROFUNDA ACTIVA", NamedTextColor.GREEN, TextDecoration.BOLD))
+                    .append(Component.text(" (0 Jugadores: chunks liberados, RAM al mínimo)", NamedTextColor.DARK_GRAY)));
+        }
+
         sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
         return true;
     }

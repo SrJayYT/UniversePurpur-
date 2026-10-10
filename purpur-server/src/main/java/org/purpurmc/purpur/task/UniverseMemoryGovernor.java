@@ -20,6 +20,9 @@ import org.purpurmc.purpur.util.MinecraftInternalPlugin;
  * volatile world caches, unloaded chunk data, and requesting JVM memory reclamation
  * before Stop-The-World GC spikes can occur.
  *
+ * Includes Zero-Player Deep-Sleep Hibernation Engine to reduce physical RAM usage
+ * down to the bare minimum when no players are online.
+ *
  * Thread-safe with AsyncCatcher-compliant synchronous dispatch for Bukkit world operations.
  * Author: DevPapo
  */
@@ -37,6 +40,9 @@ public final class UniverseMemoryGovernor implements Runnable {
 
     private final AtomicInteger autoTrimCount = new AtomicInteger(0);
     private final AtomicLong lastTrimTimestamp = new AtomicLong(0L);
+
+    private final AtomicInteger zeroPlayerSeconds = new AtomicInteger(0);
+    private volatile boolean isHibernating = false;
 
     private UniverseMemoryGovernor() {}
 
@@ -84,14 +90,34 @@ public final class UniverseMemoryGovernor implements Runnable {
             }
             this.totalGcPauseTimeMs = totalPause;
 
-            // Auto-heal / Auto-trim if heap exceeds configured threshold (default 85%)
-            double threshold = UniversePurpurConfig.memoryTrimThresholdPercent;
-            if (UniversePurpurConfig.memoryAutoTrimEnabled && heapUsagePercent >= threshold) {
-                long now = System.currentTimeMillis();
-                long last = lastTrimTimestamp.get();
-                // Cooldown: at most once every 60 seconds
-                if (now - last >= 60000L && lastTrimTimestamp.compareAndSet(last, now)) {
+            int online = Bukkit.getOnlinePlayers().size();
+
+            // Zero-Player Deep Hibernation Engine
+            if (online == 0 && UniversePurpurConfig.idleHibernationEnabled) {
+                int secs = zeroPlayerSeconds.addAndGet(5);
+                if (secs >= UniversePurpurConfig.idleHibernationTimeoutSeconds && !isHibernating) {
+                    isHibernating = true;
+                    Bukkit.getLogger().info("[UniverseTitan] 0 jugadores detectados -> Activando Hibernación Profunda (descargando chunks y liberando RAM al SO).");
                     triggerAsyncSafeTrim();
+                } else if (secs >= 60 && (secs % 30 == 0)) {
+                    // Mantenimiento periódico de reposo cada 30 segundos
+                    triggerAsyncSafeTrim();
+                }
+            } else {
+                if (isHibernating) {
+                    isHibernating = false;
+                    Bukkit.getLogger().info("[UniverseTitan] Jugador conectado -> Reanudando actividad normal del motor.");
+                }
+                zeroPlayerSeconds.set(0);
+
+                // Auto-heal / Auto-trim if heap exceeds configured threshold (default 65%)
+                double threshold = UniversePurpurConfig.memoryTrimThresholdPercent;
+                if (UniversePurpurConfig.memoryAutoTrimEnabled && heapUsagePercent >= threshold) {
+                    long now = System.currentTimeMillis();
+                    long last = lastTrimTimestamp.get();
+                    if (now - last >= 30000L && lastTrimTimestamp.compareAndSet(last, now)) {
+                        triggerAsyncSafeTrim();
+                    }
                 }
             }
         } catch (Throwable ignore) {
@@ -128,12 +154,20 @@ public final class UniverseMemoryGovernor implements Runnable {
     private int doTrimCaches() {
         autoTrimCount.incrementAndGet();
         int freedChunks = 0;
+        int online = Bukkit.getOnlinePlayers().size();
 
         try {
             for (World world : Bukkit.getWorlds()) {
+                if (online == 0) {
+                    try {
+                        world.setKeepSpawnInMemory(false);
+                    } catch (Throwable ignore) {}
+                }
+
                 Chunk[] loaded = world.getLoadedChunks();
                 for (Chunk chunk : loaded) {
-                    if (world.getPlayerCount() == 0 && !chunk.isEntitiesLoaded()) {
+                    if (online == 0) {
+                        // En reposo profundo, descargamos todos los chunks no ocupados por entidades criticas
                         if (world.unloadChunk(chunk)) {
                             freedChunks++;
                         }
@@ -145,7 +179,7 @@ public final class UniverseMemoryGovernor implements Runnable {
                             org.bukkit.Location pLoc = p.getLocation();
                             double dx = pLoc.getX() - cx;
                             double dz = pLoc.getZ() - cz;
-                            if ((dx * dx + dz * dz) <= (64.0D * 64.0D)) {
+                            if ((dx * dx + dz * dz) <= (48.0D * 48.0D)) {
                                 hasNearbyPlayer = true;
                                 break;
                             }
@@ -159,6 +193,12 @@ public final class UniverseMemoryGovernor implements Runnable {
                 }
             }
 
+            if (online == 0) {
+                try {
+                    org.purpurmc.purpur.util.SpatialGrid.instance().clear();
+                } catch (Throwable ignore) {}
+            }
+
             // Prune expired codes & web sessions to minimize JVM Heap footprint
             try {
                 org.purpurmc.purpur.web.UniverseDiscordLinker.instance().cleanExpiredCodes();
@@ -166,7 +206,7 @@ public final class UniverseMemoryGovernor implements Runnable {
             } catch (Throwable ignore) {
             }
 
-            // Explicit concurrent GC invitation to JVM runtime
+            // Explicit concurrent GC invitation to JVM runtime to release pages to OS
             System.gc();
         } catch (Throwable ignore) {
         }
@@ -174,7 +214,9 @@ public final class UniverseMemoryGovernor implements Runnable {
         return freedChunks;
     }
 
-
+    public boolean isHibernating() {
+        return isHibernating;
+    }
 
     public double getHeapUsedMb() {
         return heapUsedMb;
