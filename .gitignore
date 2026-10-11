@@ -60,3 +60,5 @@ manifest.mf
 /paper-api
 *.jar
 test-plugin.settings.gradle.kts
+
+build_universe/

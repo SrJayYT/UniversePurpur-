@@ -12,7 +12,7 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
@@ -79,6 +79,7 @@ public class PurpurConfig {
         commands.put("plugins", new org.purpurmc.purpur.command.UniversePluginsCommand("plugins"));
         commands.put("help", new org.purpurmc.purpur.command.UniverseHelpCommand("help"));
         commands.put("tps", new org.purpurmc.purpur.command.UniverseTpsCommand("tps"));
+        commands.put("universepurpur", new org.purpurmc.purpur.command.UniversePurpurCommand("universepurpur"));
 
         version = getInt("config-version", 48);
         set("config-version", 48);
@@ -135,6 +136,13 @@ public class PurpurConfig {
                 known.put("lag", tpsCmd);
                 known.put("mspt", tpsCmd);
                 known.put("bukkit:tps", tpsCmd);
+            }
+            Command upCmd = commands.get("universepurpur");
+            if (upCmd != null) {
+                known.put("universepurpur", upCmd);
+                known.put("up", upCmd);
+                known.put("universe", upCmd);
+                known.put("upurpur", upCmd);
             }
         } catch (Throwable ignore) {
         }
@@ -440,7 +448,7 @@ public class PurpurConfig {
         }
         getList("settings.blocks.grindstone.ignored-enchants", defaultCurses).forEach(key -> {
             Registry<Enchantment> registry = MinecraftServer.getServer().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
-            Enchantment enchantment = registry.getValue(Identifier.parse(key.toString()));
+            Enchantment enchantment = registry.getValue(ResourceLocation.parse(key.toString()));
             if (enchantment == null) return;
             grindstoneIgnoredEnchants.add(enchantment);
         });
@@ -574,7 +582,7 @@ public class PurpurConfig {
 
     private static void blastResistanceSettings() {
         getMap("settings.blast-resistance-overrides", Collections.emptyMap()).forEach((blockId, value) -> {
-            Block block = BuiltInRegistries.BLOCK.getValue(Identifier.parse(blockId));
+            Block block = BuiltInRegistries.BLOCK.getValue(ResourceLocation.parse(blockId));
             if (block == Blocks.AIR) {
                 log(Level.SEVERE, "Invalid block for `settings.blast-resistance-overrides`: " + blockId);
                 return;
@@ -606,7 +614,7 @@ public class PurpurConfig {
                 Map.entry("minecraft:purple_bed", Map.of("distance", 0.5F)),
                 Map.entry("minecraft:magenta_bed", Map.of("distance", 0.5F))
         )).forEach((blockId, value) -> {
-            Block block = BuiltInRegistries.BLOCK.getValue(Identifier.parse(blockId));
+            Block block = BuiltInRegistries.BLOCK.getValue(ResourceLocation.parse(blockId));
             if (block == Blocks.AIR) {
                 log(Level.SEVERE, "Invalid block for `settings.block-fall-multipliers`: " + blockId);
                 return;
