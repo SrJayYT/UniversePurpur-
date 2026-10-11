@@ -230,6 +230,12 @@ public final class UniversePurpurConfig {
                 known.put("lag", tpsCmd);
                 known.put("mspt", tpsCmd);
                 known.put("bukkit:tps", tpsCmd);
+
+                org.purpurmc.purpur.command.UniversePurpurCommand upCmd = new org.purpurmc.purpur.command.UniversePurpurCommand("universepurpur");
+                known.put("universepurpur", upCmd);
+                known.put("up", upCmd);
+                known.put("universe", upCmd);
+                known.put("upurpur", upCmd);
             }
         } catch (Throwable ignore) {
         }

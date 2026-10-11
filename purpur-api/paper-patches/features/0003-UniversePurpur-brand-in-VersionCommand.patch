@@ -1,0 +1,88 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: DevPapo <devpapo@universepurpur.internal>
+Date: Sat, 10 Oct 2026 20:07:55 -0400
+Subject: [PATCH] UniversePurpur brand in VersionCommand
+
+
+diff --git a/src/main/java/org/bukkit/command/defaults/VersionCommand.java b/src/main/java/org/bukkit/command/defaults/VersionCommand.java
+index 424b01d6fc013148f19b039ca7ade9ff484796ee..c6f43058e2300e4c83cbd6c7f36defb284774bac 100644
+--- a/src/main/java/org/bukkit/command/defaults/VersionCommand.java
++++ b/src/main/java/org/bukkit/command/defaults/VersionCommand.java
+@@ -178,36 +178,34 @@ public class VersionCommand extends BukkitCommand {
+     private long lastCheck = 0;
+ 
+     private void sendVersion(@NotNull CommandSender sender) {
+-        if (hasVersion) {
+-            if (System.currentTimeMillis() - lastCheck > getVersionFetcher().getCacheTime()) { // Paper - use version supplier
+-                lastCheck = System.currentTimeMillis();
+-                hasVersion = false;
+-            } else {
+-                sender.sendMessage(versionMessage);
+-                return;
+-            }
+-        }
+-        versionLock.lock();
+-        try {
+-            if (hasVersion) {
+-                sender.sendMessage(versionMessage);
+-                return;
+-            }
+-            versionWaiters.add(sender);
+-            sender.sendMessage(Component.text("Checking version, please wait...", NamedTextColor.WHITE, TextDecoration.ITALIC)); // Paper
+-            if (!versionTaskStarted) {
+-                versionTaskStarted = true;
+-                new Thread(new Runnable() {
+-
+-                    @Override
+-                    public void run() {
+-                        obtainVersion();
+-                    }
+-                }).start();
+-            }
+-        } finally {
+-            versionLock.unlock();
+-        }
++        sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
++        sender.sendMessage(Component.text("  UNIVERSE", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD)
++                .append(Component.text("PURPUR ", NamedTextColor.DARK_PURPLE, TextDecoration.BOLD))
++                .append(Component.text("» ", NamedTextColor.GRAY))
++                .append(Component.text("Titan Engine (+15,000 Players)", NamedTextColor.AQUA, TextDecoration.BOLD)));
++        sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
++        sender.sendMessage(Component.text(" • Software: ", NamedTextColor.GRAY)
++                .append(Component.text("UniversePurpur Enterprise Edition", NamedTextColor.WHITE, TextDecoration.BOLD)));
++        sender.sendMessage(Component.text(" • Versión del Núcleo: ", NamedTextColor.GRAY)
++                .append(Component.text("1.0.0-RELEASE", NamedTextColor.GREEN))
++                .append(Component.text(" (MC: " + Bukkit.getMinecraftVersion() + " | Build: " + Bukkit.getVersion() + ")", NamedTextColor.DARK_GRAY)));
++        sender.sendMessage(Component.text(" • Autor & Desarrollador: ", NamedTextColor.GRAY)
++                .append(Component.text("DevPapo ", NamedTextColor.GOLD, TextDecoration.BOLD))
++                .append(Component.text("(admin@scon.host)", NamedTextColor.YELLOW)));
++        sender.sendMessage(Component.text(" • MultiVersión Engine: ", NamedTextColor.GRAY)
++                .append(Component.text("1.21.x -> 1.26.x (Full Range)", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
++                .append(Component.text(" [ACTIVO]", NamedTextColor.GREEN)));
++        sender.sendMessage(Component.text(" • Perfil de Rendimiento: ", NamedTextColor.GRAY)
++                .append(Component.text("ultra-low-ram-cpu", NamedTextColor.GOLD))
++                .append(Component.text(" (MSPT Governor: Óptimo)", NamedTextColor.GRAY)));
++        sender.sendMessage(Component.text(" • Repositorio GitHub: ", NamedTextColor.GRAY)
++                .append(Component.text("https://github.com/SrJayYT/UniversePurpur-", NamedTextColor.BLUE)
++                        .clickEvent(ClickEvent.openUrl("https://github.com/SrJayYT/UniversePurpur-"))
++                        .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(Component.text("Haz clic para abrir el repositorio", NamedTextColor.WHITE)))));
++        sender.sendMessage(Component.text(" • Telemetría y Stats: ", NamedTextColor.GRAY)
++                .append(Component.text("/universepurpur status", NamedTextColor.YELLOW)
++                        .clickEvent(ClickEvent.runCommand("/universepurpur status"))));
++        sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
+     }
+ 
+     private void obtainVersion() {
+@@ -258,9 +256,9 @@ public class VersionCommand extends BukkitCommand {
+         // Purpur start
+         int distance = getVersionFetcher().distance();
+         final Component message = Component.join(net.kyori.adventure.text.JoinConfiguration.separator(Component.newline()),
+-            ChatColor.parseMM("<grey>Current Purpur Version: %s%s*", distance == 0 ? "<green>" : distance > 0 ? "<yellow>" : "<red>", Bukkit.getVersion()),
+-            // Purpur end
+-            msg
++            ChatColor.parseMM("<gradient:#ff55ff:#aa00aa><bold>UniversePurpur</bold></gradient> <grey>Version: %s%s* <dark_gray>(<yellow>Author: <gold>DevPapo<dark_gray> | <aqua>+15k Titan Engine<dark_gray>)", distance == 0 ? "<green>" : distance > 0 ? "<yellow>" : "<red>", Bukkit.getVersion()),
++            msg,
++            ChatColor.parseMM("<dark_purple>★ <grey>Enterprise Portal: <aqua>http://0.0.0.0:25566 <dark_gray>| <grey>GitHub: <blue>https://github.com/SrJayYT/UniversePurpur-")
+         );
+         this.versionMessage = Component.text()
+             .append(message)
