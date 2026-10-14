@@ -42,13 +42,19 @@ $files = @(
     "purpur-server\src\main\java\org\purpurmc\purpur\PurpurVersionFetcher.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\command\PurpurCommand.java",
     "purpur-server\src\main\java\io\papermc\paper\ServerBuildInfoImpl.java",
-    "purpur-server\src\main\java\io\papermc\paper\PaperBootstrap.java"
+    "purpur-server\src\main\java\io\papermc\paper\PaperBootstrap.java",
+    "purpur-server\src\main\java\org\bukkit\craftbukkit\util\Versioning.java"
 )
 
 Write-Host "Compiling Universe classes..."
 & $javac -cp $cp -d "build_universe" $files
 Write-Host "Compilation finished with exit code: $LASTEXITCODE"
 if ($LASTEXITCODE -ne 0) { throw "Compilation failed" }
+
+# Create pom.properties for purpur-api
+$pomDir = "build_universe\META-INF\maven\org.purpurmc.purpur\purpur-api"
+New-Item -ItemType Directory -Path $pomDir -Force | Out-Null
+Set-Content -Path "$pomDir\pom.properties" -Value "version=1.21.4-R0.1-SNAPSHOT`ngroupId=org.purpurmc.purpur`nartifactId=purpur-api"
 
 # Extract all Adventure 4.26.1 classes
 Write-Host "Extracting Adventure 4.26.1 classes..."
@@ -77,7 +83,7 @@ function Update-ZipFile($zipPath, $sourceDir) {
         $baseLen = (Resolve-Path $sourceDir).Path.Length + 1
         foreach ($f in $classes) {
             $rel = $f.FullName.Substring($baseLen).Replace('\', '/')
-            if ($rel.StartsWith("META-INF/") -or $rel -eq "META-INF") { continue }
+            if ($rel -eq "META-INF/MANIFEST.MF" -or $rel -eq "META-INF") { continue }
             $existing = $zip.GetEntry($rel)
             if ($existing) { $existing.Delete() }
             $bytes = [System.IO.File]::ReadAllBytes($f.FullName)
