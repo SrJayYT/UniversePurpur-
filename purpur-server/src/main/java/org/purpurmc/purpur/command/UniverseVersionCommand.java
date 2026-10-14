@@ -99,26 +99,31 @@ public class UniverseVersionCommand extends Command {
         sender.sendMessage(Component.text("  UNIVERSE", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD)
                 .append(Component.text("PURPUR ", NamedTextColor.DARK_PURPLE, TextDecoration.BOLD))
                 .append(Component.text("» ", NamedTextColor.GRAY))
-                .append(Component.text("Titan Engine (+15,000 Players)", NamedTextColor.AQUA, TextDecoration.BOLD)));
+                .append(Component.text(UniversePurpurConfig.getEngineName(), NamedTextColor.AQUA, TextDecoration.BOLD)));
         sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
 
         sender.sendMessage(Component.text(" • Software: ", NamedTextColor.GRAY)
                 .append(Component.text("UniversePurpur Enterprise Edition", NamedTextColor.WHITE, TextDecoration.BOLD)));
 
         sender.sendMessage(Component.text(" • Versión del Núcleo: ", NamedTextColor.GRAY)
-                .append(Component.text("1.0.0-RELEASE", NamedTextColor.GREEN))
+                .append(Component.text("1.0.1-TITAN-RELEASE", NamedTextColor.GREEN))
                 .append(Component.text(" (MC: " + mcVer + " | Build: " + version + ")", NamedTextColor.DARK_GRAY)));
 
         sender.sendMessage(Component.text(" • Autor & Desarrollador: ", NamedTextColor.GRAY)
                 .append(Component.text("DevPapo ", NamedTextColor.GOLD, TextDecoration.BOLD))
                 .append(Component.text("(admin@scon.host)", NamedTextColor.YELLOW)));
 
+        sender.sendMessage(Component.text(" • Motor en Uso (Engine): ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.getEngineName(), NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
+                .append(Component.text(" [" + UniversePurpurConfig.engine + "]", NamedTextColor.DARK_AQUA)));
+
+        sender.sendMessage(Component.text(" • Tuner de Rendimiento: ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.getTunerName(), NamedTextColor.GOLD, TextDecoration.BOLD))
+                .append(Component.text(" [" + profile + "]", NamedTextColor.YELLOW))
+                .append(Component.text(" (Gobernador MSPT: " + throttle + ")", NamedTextColor.GRAY)));
+
         sender.sendMessage(Component.text(" • Arquitectura: ", NamedTextColor.GRAY)
                 .append(Component.text("Java 24 LTS | Generational ZGC | Netty Lock-Free", NamedTextColor.DARK_AQUA)));
-
-        sender.sendMessage(Component.text(" • Perfil de Rendimiento: ", NamedTextColor.GRAY)
-                .append(Component.text(profile, NamedTextColor.GOLD))
-                .append(Component.text(" (Gobernador MSPT: " + throttle + ")", NamedTextColor.GRAY)));
 
         sender.sendMessage(Component.text(" • Versiones Nativas: ", NamedTextColor.GRAY)
                 .append(Component.text("1.21.0, 1.21.1, 1.21.2, 1.21.3, 1.21.4, 1.21.5, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10, 1.21.11", NamedTextColor.AQUA, TextDecoration.BOLD))

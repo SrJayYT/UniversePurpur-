@@ -95,10 +95,16 @@ public class UniverseTpsCommand extends Command {
                 .append(Component.text(" (Ideal: < 40.0 ms | Target: " + UniversePurpurConfig.targetMspt + " ms)", NamedTextColor.DARK_GRAY));
         sender.sendMessage(msptLine);
 
-        Component governorLine = Component.text(" • Dynamic Governor: ", NamedTextColor.GRAY)
-                .append(Component.text(governor.getThrottleLevelName(), (governor.getThrottleLevel() == 0) ? NamedTextColor.GREEN : NamedTextColor.YELLOW))
-                .append(Component.text(" | Perfil: " + UniversePurpurConfig.profile, NamedTextColor.AQUA));
-        sender.sendMessage(governorLine);
+        Component motorLine = Component.text(" • Motor en Uso (Engine): ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.getEngineName(), NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
+                .append(Component.text(" [" + UniversePurpurConfig.engine + "]", NamedTextColor.DARK_AQUA));
+        sender.sendMessage(motorLine);
+
+        Component tunerLine = Component.text(" • Tuner de Rendimiento: ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.getTunerName(), NamedTextColor.GOLD, TextDecoration.BOLD))
+                .append(Component.text(" [" + UniversePurpurConfig.profile + "]", NamedTextColor.YELLOW))
+                .append(Component.text(" | Gobernador: " + governor.getThrottleLevelName(), (governor.getThrottleLevel() == 0) ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
+        sender.sendMessage(tunerLine);
 
         Component memLine = Component.text(" • Memoria Heap (RAM): ", NamedTextColor.GRAY)
                 .append(Component.text(usedMb + " MB", memColor, TextDecoration.BOLD))

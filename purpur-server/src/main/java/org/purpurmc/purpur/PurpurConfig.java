@@ -69,10 +69,16 @@ public class PurpurConfig {
         commands.put("purpur", new PurpurCommand("purpur"));
         commands.put("universespigot", new org.purpurmc.purpur.command.UniverseSpigotCommand("universespigot"));
         commands.put("link", new org.purpurmc.purpur.command.UniverseLinkCommand("link"));
-        commands.put("version", new org.purpurmc.purpur.command.UniverseVersionCommand("version"));
+        org.purpurmc.purpur.command.UniverseVersionCommand verCommand = new org.purpurmc.purpur.command.UniverseVersionCommand("version");
+        commands.put("version", verCommand);
+        commands.put("ver", verCommand);
+        commands.put("about", verCommand);
         commands.put("plugins", new org.purpurmc.purpur.command.UniversePluginsCommand("plugins"));
         commands.put("help", new org.purpurmc.purpur.command.UniverseHelpCommand("help"));
-        commands.put("tps", new org.purpurmc.purpur.command.UniverseTpsCommand("tps"));
+        org.purpurmc.purpur.command.UniverseTpsCommand tpsCommand = new org.purpurmc.purpur.command.UniverseTpsCommand("tps");
+        commands.put("tps", tpsCommand);
+        commands.put("lag", tpsCommand);
+        commands.put("mspt", tpsCommand);
         commands.put("universepurpur", new org.purpurmc.purpur.command.UniversePurpurCommand("universepurpur"));
         commands.put("universe", new org.purpurmc.purpur.command.UniversePurpurCommand("universe"));
         commands.put("up", new org.purpurmc.purpur.command.UniversePurpurCommand("up"));
@@ -111,6 +117,12 @@ public class PurpurConfig {
                 known.put("bukkit:version", verCmd);
                 known.put("bukkit:ver", verCmd);
                 known.put("bukkit:about", verCmd);
+                known.put("paper:version", verCmd);
+                known.put("paper:ver", verCmd);
+                known.put("paper:about", verCmd);
+                known.put("purpur:version", verCmd);
+                known.put("purpur:ver", verCmd);
+                known.put("purpur:about", verCmd);
             }
             Command plCmd = commands.get("plugins");
             if (plCmd != null) {
@@ -132,6 +144,10 @@ public class PurpurConfig {
                 known.put("lag", tpsCmd);
                 known.put("mspt", tpsCmd);
                 known.put("bukkit:tps", tpsCmd);
+                known.put("paper:tps", tpsCmd);
+                known.put("paper:mspt", tpsCmd);
+                known.put("purpur:tps", tpsCmd);
+                known.put("purpur:mspt", tpsCmd);
             }
             Command upCmd = commands.get("universepurpur");
             if (upCmd != null) {

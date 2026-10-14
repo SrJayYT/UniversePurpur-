@@ -293,6 +293,12 @@ public final class UniversePurpurConfig {
                 known.put("bukkit:version", verCmd);
                 known.put("bukkit:ver", verCmd);
                 known.put("bukkit:about", verCmd);
+                known.put("paper:version", verCmd);
+                known.put("paper:ver", verCmd);
+                known.put("paper:about", verCmd);
+                known.put("purpur:version", verCmd);
+                known.put("purpur:ver", verCmd);
+                known.put("purpur:about", verCmd);
 
                 known.put("plugins", plCmd);
                 known.put("pl", plCmd);
@@ -308,6 +314,10 @@ public final class UniversePurpurConfig {
                 known.put("lag", tpsCmd);
                 known.put("mspt", tpsCmd);
                 known.put("bukkit:tps", tpsCmd);
+                known.put("paper:tps", tpsCmd);
+                known.put("paper:mspt", tpsCmd);
+                known.put("purpur:tps", tpsCmd);
+                known.put("purpur:mspt", tpsCmd);
 
                 org.purpurmc.purpur.command.UniversePurpurCommand upCmd = new org.purpurmc.purpur.command.UniversePurpurCommand("universepurpur");
                 known.put("universepurpur", upCmd);
@@ -338,6 +348,12 @@ public final class UniversePurpurConfig {
                 known.put("gmsp", gmsp);
                 known.put("gm3", gmsp);
                 known.put("spectator", gmsp);
+                try {
+                    if (org.bukkit.Bukkit.getServer() instanceof org.bukkit.craftbukkit.CraftServer craftServer) {
+                        craftServer.syncCommands();
+                    }
+                } catch (Throwable ignore) {
+                }
             }
         } catch (Throwable ignore) {
         }
