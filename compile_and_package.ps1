@@ -21,6 +21,7 @@ $files = @(
     "purpur-server\src\main\java\org\purpurmc\purpur\multiversion\UniverseMultiVersionManager.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\multiversion\UniverseGeyserManager.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\command\UniversePurpurCommand.java",
+    "purpur-server\src\main\java\org\purpurmc\purpur\command\UniverseGamemodeCommand.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\command\UniverseVersionCommand.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\command\UniversePluginsCommand.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\command\UniverseHelpCommand.java",

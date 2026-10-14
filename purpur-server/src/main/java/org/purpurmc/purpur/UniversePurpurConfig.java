@@ -189,11 +189,15 @@ public final class UniversePurpurConfig {
                     props.setProperty("sync-chunk-writes", "false");
                     modified = true;
                 }
+                if (!"false".equals(props.getProperty("enforce-secure-profile"))) {
+                    props.setProperty("enforce-secure-profile", "false");
+                    modified = true;
+                }
                 if (modified) {
                     try (java.io.FileOutputStream out = new java.io.FileOutputStream(propFile)) {
                         props.store(out, "UniversePurpur Ultra-Low RAM & CPU Configuration");
                     }
-                    Bukkit.getLogger().info("[UniverseTitan] server.properties optimizado: spawn-chunk-radius=0 (RAM minima en reposo).");
+                    Bukkit.getLogger().info("[UniverseTitan] server.properties optimizado: spawn-chunk-radius=0, enforce-secure-profile=false.");
                 }
             }
         } catch (Throwable ignore) {
@@ -237,6 +241,30 @@ public final class UniversePurpurConfig {
                 known.put("up", upCmd);
                 known.put("universe", upCmd);
                 known.put("upurpur", upCmd);
+
+                // Quick Gamemode Commands (/gmc, /gms, /gma, /gmsp, /gm)
+                org.purpurmc.purpur.command.UniverseGamemodeCommand gm = new org.purpurmc.purpur.command.UniverseGamemodeCommand("gm", java.util.List.of());
+                org.purpurmc.purpur.command.UniverseGamemodeCommand gmc = new org.purpurmc.purpur.command.UniverseGamemodeCommand("gmc", org.bukkit.GameMode.CREATIVE, "Creativo", java.util.List.of("gm1", "creative"));
+                org.purpurmc.purpur.command.UniverseGamemodeCommand gms = new org.purpurmc.purpur.command.UniverseGamemodeCommand("gms", org.bukkit.GameMode.SURVIVAL, "Supervivencia", java.util.List.of("gm0", "survival"));
+                org.purpurmc.purpur.command.UniverseGamemodeCommand gma = new org.purpurmc.purpur.command.UniverseGamemodeCommand("gma", org.bukkit.GameMode.ADVENTURE, "Aventura", java.util.List.of("gm2", "adventure"));
+                org.purpurmc.purpur.command.UniverseGamemodeCommand gmsp = new org.purpurmc.purpur.command.UniverseGamemodeCommand("gmsp", org.bukkit.GameMode.SPECTATOR, "Espectador", java.util.List.of("gm3", "spectator"));
+
+                known.put("gm", gm);
+                known.put("gmc", gmc);
+                known.put("gm1", gmc);
+                known.put("creative", gmc);
+
+                known.put("gms", gms);
+                known.put("gm0", gms);
+                known.put("survival", gms);
+
+                known.put("gma", gma);
+                known.put("gm2", gma);
+                known.put("adventure", gma);
+
+                known.put("gmsp", gmsp);
+                known.put("gm3", gmsp);
+                known.put("spectator", gmsp);
             }
         } catch (Throwable ignore) {
         }
