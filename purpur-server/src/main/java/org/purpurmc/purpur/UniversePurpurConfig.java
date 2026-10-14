@@ -31,6 +31,7 @@ public final class UniversePurpurConfig {
 
     // --- Global Runtime Flags ---
     public static boolean enabled = true;
+    public static String engine = "titan-hyper-scale";
     public static String profile = "ultra-low-ram-cpu";
 
     // --- Dynamic MSPT & Tick Throttling (5-Tier Hyper-Scale Governor) ---
@@ -126,6 +127,15 @@ public final class UniversePurpurConfig {
     public static String webServerFaviconUrl = "https://purpurmc.org/favicon.ico";
     public static String webServerIpAddress = "panel.scon.host";
     public static String webDiscordInviteUrl = "https://discord.gg/universepurpur";
+ 
+    // --- Discord Bot & OAuth2 Linker Integration ---
+    public static boolean discordLinkerEnabled = true;
+    public static String discordBotToken = "";
+    public static String discordClientId = "";
+    public static String discordClientSecret = "";
+    public static String discordGuildId = "";
+    public static String discordRoleId = "";
+    public static String discordRedirectUri = "";
 
     // --- MultiVersion Support (1.21.x -> 1.26.x Full Protocol Range) ---
     public static boolean multiVersionEnabled = true;
@@ -386,9 +396,95 @@ public final class UniversePurpurConfig {
         }
     }
 
+    public static String getEngineName() {
+        if ("purpur-optimized".equalsIgnoreCase(engine)) {
+            return "Purpur Optimized Engine";
+        } else if ("vanilla-fidelity".equalsIgnoreCase(engine)) {
+            return "Vanilla High-Fidelity Engine";
+        }
+        return "Titan Hyper-Scale Engine (+15,000 Players)";
+    }
+
+    public static String getTunerName() {
+        if ("15k-hyper-hub".equalsIgnoreCase(profile)) {
+            return "15k Hyper-Hub (Lobbies & Hubs)";
+        } else if ("15k-mega-arena".equalsIgnoreCase(profile)) {
+            return "15k Mega-Arena (Minijuegos & PvP)";
+        } else if ("15k-scale-smp".equalsIgnoreCase(profile)) {
+            return "15k Scale-SMP (Supervivencia & Skyblock)";
+        } else if ("balanced".equalsIgnoreCase(profile)) {
+            return "Balanced Enterprise (Balance General)";
+        }
+        return "Ultra-Low RAM/CPU (VPS Económico)";
+    }
+
+    public static void setEngine(String newEngine) {
+        if (newEngine == null) return;
+        engine = newEngine.toLowerCase().trim();
+        if ("purpur-optimized".equalsIgnoreCase(engine)) {
+            spatialGridEnabled = false;
+            idleHibernationEnabled = false;
+            aggressiveMemorySaver = false;
+            antiCrashShieldEnabled = true;
+            memoryAutoTrimEnabled = true;
+            dabEnabled = true;
+        } else if ("vanilla-fidelity".equalsIgnoreCase(engine)) {
+            spatialGridEnabled = false;
+            idleHibernationEnabled = false;
+            aggressiveMemorySaver = false;
+            antiCrashShieldEnabled = false;
+            memoryAutoTrimEnabled = false;
+            dabEnabled = false;
+            playerCollisionsEnabled = true;
+            maxCollisionsPerEntity = 8;
+        } else {
+            engine = "titan-hyper-scale";
+            spatialGridEnabled = true;
+            idleHibernationEnabled = true;
+            antiCrashShieldEnabled = true;
+            memoryAutoTrimEnabled = true;
+            dabEnabled = true;
+            playerCollisionsEnabled = false;
+            maxCollisionsPerEntity = 1;
+        }
+        if (config != null) {
+            config.set("engine", engine);
+            save();
+        }
+    }
+
+    public static void updateDiscordConfig(String botToken, String clientId, String clientSecret, String guildId, String roleId, String redirectUri) {
+        if (botToken != null) discordBotToken = botToken.trim();
+        if (clientId != null) discordClientId = clientId.trim();
+        if (clientSecret != null) discordClientSecret = clientSecret.trim();
+        if (guildId != null) discordGuildId = guildId.trim();
+        if (roleId != null) discordRoleId = roleId.trim();
+        if (redirectUri != null) discordRedirectUri = redirectUri.trim();
+
+        if (config != null) {
+            config.set("global.discord.bot-token", discordBotToken);
+            config.set("global.discord.client-id", discordClientId);
+            config.set("global.discord.client-secret", discordClientSecret);
+            config.set("global.discord.guild-id", discordGuildId);
+            config.set("global.discord.role-id", discordRoleId);
+            config.set("global.discord.redirect-uri", discordRedirectUri);
+            save();
+        }
+    }
+
     private static void readDefaultsAndValues() {
         enabled = getBoolean("global.enabled", enabled);
+        engine = getString("engine", engine);
         profile = getString("profile", profile);
+
+        // Discord Bot & OAuth2 Integration
+        discordLinkerEnabled = getBoolean("global.discord.enabled", discordLinkerEnabled);
+        discordBotToken = getString("global.discord.bot-token", discordBotToken);
+        discordClientId = getString("global.discord.client-id", discordClientId);
+        discordClientSecret = getString("global.discord.client-secret", discordClientSecret);
+        discordGuildId = getString("global.discord.guild-id", discordGuildId);
+        discordRoleId = getString("global.discord.role-id", discordRoleId);
+        discordRedirectUri = getString("global.discord.redirect-uri", discordRedirectUri);
 
 
         // Dynamic Tick Governor

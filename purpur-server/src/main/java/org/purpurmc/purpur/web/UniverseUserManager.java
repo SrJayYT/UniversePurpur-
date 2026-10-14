@@ -98,7 +98,7 @@ public final class UniverseUserManager {
         User user = users.get(username.toLowerCase());
         if (user == null) return null;
         String token = UUID.randomUUID().toString().replace("-", "") + Long.toHexString(System.currentTimeMillis());
-        long expiry = System.currentTimeMillis() + (7L * 24L * 3600L * 1000L); // 7 days
+        long expiry = System.currentTimeMillis() + (14L * 24L * 3600L * 1000L); // 14 days (minimum 2 weeks)
         Session session = new Session(token, user.username, user.role, expiry);
         activeSessions.put(token, session);
         return session;

@@ -73,7 +73,7 @@ public class UniverseLinkCommand extends Command {
                 .append(Component.text(code, NamedTextColor.AQUA, TextDecoration.BOLD)));
         player.sendMessage(Component.text("1. Entra a la web pública: ", NamedTextColor.GRAY)
                 .append(Component.text("http://" + UniversePurpurConfig.webServerIpAddress + ":" + UniversePurpurConfig.webPanelPort, NamedTextColor.GOLD)));
-        player.sendMessage(Component.text("2. Ingresa tu Nickname y este código para completar la vinculación.", NamedTextColor.GRAY));
+        player.sendMessage(Component.text("2. Inicia sesión con Discord en la web y pega este código único.", NamedTextColor.GRAY));
         player.sendMessage(Component.text("⏱ Este código expirará en 5 minutos.", NamedTextColor.YELLOW));
         player.sendMessage(Component.text("========================================", NamedTextColor.DARK_PURPLE));
 

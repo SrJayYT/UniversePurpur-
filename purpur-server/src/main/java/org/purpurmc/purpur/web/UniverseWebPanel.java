@@ -9,8 +9,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.Duration;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -51,6 +55,44 @@ public final class UniverseWebPanel {
     private final java.util.concurrent.atomic.AtomicInteger cachedLoadedChunks = new java.util.concurrent.atomic.AtomicInteger(0);
     private org.bukkit.event.Listener chunkListener;
     private boolean running = false;
+
+    public static class DiscordSession {
+        public String sessionId;
+        public String discordId;
+        public String username;
+        public String globalName;
+        public String avatar;
+        public long expiresAt;
+
+        public DiscordSession(String sessionId, String discordId, String username, String globalName, String avatar, long expiresAt) {
+            this.sessionId = sessionId;
+            this.discordId = discordId;
+            this.username = username;
+            this.globalName = globalName;
+            this.avatar = avatar;
+            this.expiresAt = expiresAt;
+        }
+
+        public boolean isExpired() {
+            return System.currentTimeMillis() > expiresAt;
+        }
+
+        public String getDisplayName() {
+            return (globalName != null && !globalName.isEmpty()) ? globalName : username;
+        }
+
+        public String getAvatarUrl() {
+            if (avatar != null && !avatar.isEmpty()) {
+                return "https://cdn.discordapp.com/avatars/" + discordId + "/" + avatar + ".png";
+            }
+            return "https://cdn.discordapp.com/embed/avatars/0.png";
+        }
+    }
+
+    private final java.util.Map<String, DiscordSession> discordSessions = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(6))
+            .build();
 
     private UniverseWebPanel() {}
 
@@ -222,6 +264,180 @@ public final class UniverseWebPanel {
         }
     }
 
+    public static String getDiscordCallbackUrl(HttpExchange exchange) {
+        if (UniversePurpurConfig.discordRedirectUri != null && !UniversePurpurConfig.discordRedirectUri.isEmpty()) {
+            return UniversePurpurConfig.discordRedirectUri;
+        }
+        String host = null;
+        if (exchange != null) {
+            host = exchange.getRequestHeaders().getFirst("Host");
+        }
+        if (host == null || host.isEmpty()) {
+            host = UniversePurpurConfig.webServerIpAddress + ":" + UniversePurpurConfig.webPanelPort;
+        }
+        String proto = "http";
+        if (exchange != null && "https".equalsIgnoreCase(exchange.getRequestHeaders().getFirst("X-Forwarded-Proto"))) {
+            proto = "https";
+        }
+        return proto + "://" + host + "/link/callback";
+    }
+
+    private DiscordSession getDiscordSession(HttpExchange exchange) {
+        String sessionId = null;
+        String cookieHeader = exchange.getRequestHeaders().getFirst("Cookie");
+        if (cookieHeader != null) {
+            for (String cookie : cookieHeader.split(";")) {
+                String[] pair = cookie.trim().split("=", 2);
+                if (pair.length == 2 && pair[0].equalsIgnoreCase("universe_discord_session")) {
+                    sessionId = pair[1].trim();
+                    break;
+                }
+            }
+        }
+        if (sessionId == null) {
+            String sessHdr = exchange.getRequestHeaders().getFirst("X-Discord-Session");
+            if (sessHdr != null && !sessHdr.isEmpty()) {
+                sessionId = sessHdr.trim();
+            }
+        }
+        if (sessionId != null) {
+            DiscordSession session = discordSessions.get(sessionId);
+            if (session != null) {
+                if (session.isExpired()) {
+                    discordSessions.remove(sessionId);
+                    return null;
+                }
+                return session;
+            }
+        }
+        return null;
+    }
+
+    private void handleDiscordLogin(HttpExchange exchange) throws IOException {
+        String clientId = UniversePurpurConfig.discordClientId;
+        if (clientId == null || clientId.trim().isEmpty()) {
+            exchange.getResponseHeaders().set("Location", "/link?error=discord_not_configured");
+            exchange.sendResponseHeaders(302, -1);
+            return;
+        }
+        String redirectUri = java.net.URLEncoder.encode(getDiscordCallbackUrl(exchange), StandardCharsets.UTF_8);
+        String url = "https://discord.com/oauth2/authorize?client_id=" + clientId.trim()
+                + "&response_type=code&redirect_uri=" + redirectUri
+                + "&scope=identify";
+        exchange.getResponseHeaders().set("Location", url);
+        exchange.sendResponseHeaders(302, -1);
+    }
+
+    private void handleDiscordCallback(HttpExchange exchange) throws IOException {
+        String query = exchange.getRequestURI().getQuery();
+        String code = null;
+        if (query != null) {
+            for (String param : query.split("&")) {
+                String[] pair = param.split("=", 2);
+                if (pair.length == 2 && pair[0].equalsIgnoreCase("code")) {
+                    code = pair[1];
+                    break;
+                }
+            }
+        }
+
+        if (code == null || code.trim().isEmpty()) {
+            exchange.getResponseHeaders().set("Location", "/link?error=missing_code");
+            exchange.sendResponseHeaders(302, -1);
+            return;
+        }
+
+        try {
+            String callbackUrl = getDiscordCallbackUrl(exchange);
+            String form = "client_id=" + java.net.URLEncoder.encode(UniversePurpurConfig.discordClientId, StandardCharsets.UTF_8)
+                    + "&client_secret=" + java.net.URLEncoder.encode(UniversePurpurConfig.discordClientSecret, StandardCharsets.UTF_8)
+                    + "&grant_type=authorization_code"
+                    + "&code=" + java.net.URLEncoder.encode(code, StandardCharsets.UTF_8)
+                    + "&redirect_uri=" + java.net.URLEncoder.encode(callbackUrl, StandardCharsets.UTF_8);
+
+            HttpRequest tokenReq = HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("https://discord.com/api/oauth2/token"))
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .header("User-Agent", "UniversePurpur-Titan")
+                    .POST(HttpRequest.BodyPublishers.ofString(form))
+                    .build();
+
+            HttpResponse<String> tokenResp = HTTP_CLIENT.send(tokenReq, HttpResponse.BodyHandlers.ofString());
+            String tokenBody = tokenResp.body();
+            String accessToken = extractJsonString(tokenBody, "access_token");
+            if (accessToken == null || accessToken.isEmpty()) {
+                exchange.getResponseHeaders().set("Location", "/link?error=token_exchange_failed");
+                exchange.sendResponseHeaders(302, -1);
+                return;
+            }
+
+            HttpRequest userReq = HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("https://discord.com/api/users/@me"))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("User-Agent", "UniversePurpur-Titan")
+                    .GET()
+                    .build();
+
+            HttpResponse<String> userResp = HTTP_CLIENT.send(userReq, HttpResponse.BodyHandlers.ofString());
+            String userBody = userResp.body();
+            String id = extractJsonString(userBody, "id");
+            String username = extractJsonString(userBody, "username");
+            String globalName = extractJsonString(userBody, "global_name");
+            String avatar = extractJsonString(userBody, "avatar");
+
+            if (id == null || username == null) {
+                exchange.getResponseHeaders().set("Location", "/link?error=user_fetch_failed");
+                exchange.sendResponseHeaders(302, -1);
+                return;
+            }
+
+            String sessId = UUID.randomUUID().toString().replace("-", "") + Long.toHexString(System.currentTimeMillis());
+            long expiry = System.currentTimeMillis() + (14L * 24L * 3600L * 1000L); // 14 DAYS (2 WEEKS)
+            DiscordSession session = new DiscordSession(sessId, id, username, globalName, avatar, expiry);
+            discordSessions.put(sessId, session);
+
+            // Set 14-day cookie (14 * 86400 = 1209600 seconds)
+            exchange.getResponseHeaders().set("Set-Cookie", "universe_discord_session=" + sessId + "; Max-Age=1209600; Path=/; SameSite=Lax");
+            exchange.getResponseHeaders().set("Location", "/link?auth=success");
+            exchange.sendResponseHeaders(302, -1);
+        } catch (Throwable t) {
+            Bukkit.getLogger().log(Level.WARNING, "Error in Discord OAuth2 callback", t);
+            exchange.getResponseHeaders().set("Location", "/link?error=internal_error");
+            exchange.sendResponseHeaders(302, -1);
+        }
+    }
+
+    private void handleDiscordLogout(HttpExchange exchange) throws IOException {
+        String cookieHeader = exchange.getRequestHeaders().getFirst("Cookie");
+        if (cookieHeader != null) {
+            for (String cookie : cookieHeader.split(";")) {
+                String[] pair = cookie.trim().split("=", 2);
+                if (pair.length == 2 && pair[0].equalsIgnoreCase("universe_discord_session")) {
+                    discordSessions.remove(pair[1].trim());
+                    break;
+                }
+            }
+        }
+        exchange.getResponseHeaders().set("Set-Cookie", "universe_discord_session=; Max-Age=0; Path=/; SameSite=Lax");
+        exchange.getResponseHeaders().set("Location", "/link");
+        exchange.sendResponseHeaders(302, -1);
+    }
+
+    private static void assignDiscordRoleAsync(String guildId, String discordUserId, String roleId, String botToken) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                HttpRequest roleReq = HttpRequest.newBuilder()
+                        .uri(java.net.URI.create("https://discord.com/api/guilds/" + guildId + "/members/" + discordUserId + "/roles/" + roleId))
+                        .header("Authorization", "Bot " + botToken)
+                        .header("User-Agent", "UniversePurpur-Titan")
+                        .PUT(HttpRequest.BodyPublishers.noBody())
+                        .build();
+                HTTP_CLIENT.send(roleReq, HttpResponse.BodyHandlers.discarding());
+            } catch (Throwable ignore) {
+            }
+        });
+    }
+
     private class RouterHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -265,6 +481,20 @@ public final class UniverseWebPanel {
                 return;
             }
 
+            // 2b. Discord OAuth2 Web Flow
+            if (path.equals("/link/login") || path.equals("/api/discord/login")) {
+                handleDiscordLogin(exchange);
+                return;
+            }
+            if (path.equals("/link/callback") || path.equals("/api/discord/callback")) {
+                handleDiscordCallback(exchange);
+                return;
+            }
+            if (path.equals("/link/logout") || path.equals("/api/discord/logout")) {
+                handleDiscordLogout(exchange);
+                return;
+            }
+
             // 3. Admin Web Panel (/admin)
             if (path.equals("/admin") || path.equals("/admin/")) {
                 sendHtmlResponse(exchange, 200, ADMIN_PANEL_HTML);
@@ -291,21 +521,54 @@ public final class UniverseWebPanel {
             return;
         }
 
+        // Discord Session info for Web Portal
+        if (path.equals("/api/discord/me") && "GET".equalsIgnoreCase(method)) {
+            DiscordSession dSession = getDiscordSession(exchange);
+            if (dSession != null) {
+                UniverseDiscordLinker.LinkedAccount acc = UniverseDiscordLinker.instance().getByDiscord(dSession.discordId);
+                String pName = acc != null ? acc.playerName : null;
+                long linkedAt = acc != null ? acc.linkedAt : 0;
+                sendJsonResponse(exchange, 200, String.format(Locale.ROOT,
+                        "{\"authenticated\":true,\"discordId\":\"%s\",\"username\":\"%s\",\"displayName\":\"%s\",\"avatarUrl\":\"%s\",\"linked\":%b,\"player\":%s,\"linkedAt\":%d}",
+                        escapeJson(dSession.discordId), escapeJson(dSession.username), escapeJson(dSession.getDisplayName()),
+                        escapeJson(dSession.getAvatarUrl()), (acc != null),
+                        (pName != null ? "\"" + escapeJson(pName) + "\"" : "null"), linkedAt));
+            } else {
+                sendJsonResponse(exchange, 200, String.format(Locale.ROOT,
+                        "{\"authenticated\":false,\"configured\":%b,\"loginUrl\":\"/link/login\",\"callbackUrl\":\"%s\"}",
+                        (!UniversePurpurConfig.discordClientId.isEmpty()), escapeJson(getDiscordCallbackUrl(exchange))));
+            }
+            return;
+        }
+
         // Public Account Linking Verification
         if (path.equals("/api/link/verify") && "POST".equalsIgnoreCase(method)) {
             String body = readRequestBody(exchange);
             String code = extractJsonString(body, "code");
+            DiscordSession dSession = getDiscordSession(exchange);
             String discordId = extractJsonString(body, "discordId");
             String discordTag = extractJsonString(body, "discordTag");
-            if (code == null || discordId == null) {
-                sendJsonResponse(exchange, 400, "{\"success\":false,\"message\":\"Código y Discord ID requeridos\"}");
+
+            if (dSession != null) {
+                discordId = dSession.discordId;
+                discordTag = dSession.getDisplayName();
+            }
+
+            if (code == null || code.trim().isEmpty() || discordId == null || discordId.trim().isEmpty()) {
+                sendJsonResponse(exchange, 400, "{\"success\":false,\"message\":\"Código de vinculación de Minecraft requerido (/link)\"}");
                 return;
             }
+
             boolean ok = UniverseDiscordLinker.instance().verifyAndLink(code, discordId, discordTag);
             if (ok) {
-                sendJsonResponse(exchange, 200, "{\"success\":true,\"message\":\"¡Cuenta vinculada con éxito a Discord!\"}");
+                if (!UniversePurpurConfig.discordBotToken.isEmpty() && !UniversePurpurConfig.discordGuildId.isEmpty() && !UniversePurpurConfig.discordRoleId.isEmpty()) {
+                    assignDiscordRoleAsync(UniversePurpurConfig.discordGuildId, discordId, UniversePurpurConfig.discordRoleId, UniversePurpurConfig.discordBotToken);
+                }
+                UniverseDiscordLinker.LinkedAccount acc = UniverseDiscordLinker.instance().getByDiscord(discordId);
+                String pName = acc != null ? acc.playerName : "tu jugador";
+                sendJsonResponse(exchange, 200, "{\"success\":true,\"message\":\"¡Cuenta vinculada con éxito a " + escapeJson(pName) + "!\",\"player\":\"" + escapeJson(pName) + "\"}");
             } else {
-                sendJsonResponse(exchange, 400, "{\"success\":false,\"message\":\"Código inválido o expirado. Genera uno nuevo con /link en el juego.\"}");
+                sendJsonResponse(exchange, 400, "{\"success\":false,\"message\":\"Código inválido o expirado. Genera uno nuevo con /link en Minecraft.\"}");
             }
             return;
         }
@@ -425,6 +688,77 @@ public final class UniverseWebPanel {
             return;
         }
 
+        // Discord Bot & OAuth2 Settings (Requires SUPER_ADMIN)
+        if (path.equals("/api/settings/discord") && "GET".equalsIgnoreCase(method)) {
+            if (session.role != UniverseUserManager.Role.SUPER_ADMIN) {
+                sendJsonResponse(exchange, 403, "{\"error\":\"Permiso denegado\"}");
+                return;
+            }
+            StringBuilder linksArray = new StringBuilder("[");
+            int count = 0;
+            for (UniverseDiscordLinker.LinkedAccount acc : UniverseDiscordLinker.instance().getAllLinks().values()) {
+                if (count > 0) linksArray.append(",");
+                linksArray.append(String.format(Locale.ROOT,
+                        "{\"uuid\":\"%s\",\"player\":\"%s\",\"discordId\":\"%s\",\"discordTag\":\"%s\",\"linkedAt\":%d}",
+                        escapeJson(acc.playerUuid.toString()), escapeJson(acc.playerName),
+                        escapeJson(acc.discordId), escapeJson(acc.discordTag), acc.linkedAt));
+                count++;
+            }
+            linksArray.append("]");
+
+            String resp = String.format(Locale.ROOT,
+                    "{\"enabled\":%b,\"botToken\":\"%s\",\"clientId\":\"%s\",\"clientSecret\":\"%s\",\"guildId\":\"%s\",\"roleId\":\"%s\",\"redirectUri\":\"%s\",\"callbackUrl\":\"%s\",\"totalLinked\":%d,\"links\":%s}",
+                    UniversePurpurConfig.discordLinkerEnabled,
+                    escapeJson(UniversePurpurConfig.discordBotToken),
+                    escapeJson(UniversePurpurConfig.discordClientId),
+                    escapeJson(UniversePurpurConfig.discordClientSecret),
+                    escapeJson(UniversePurpurConfig.discordGuildId),
+                    escapeJson(UniversePurpurConfig.discordRoleId),
+                    escapeJson(UniversePurpurConfig.discordRedirectUri),
+                    escapeJson(getDiscordCallbackUrl(exchange)),
+                    count,
+                    linksArray.toString());
+            sendJsonResponse(exchange, 200, resp);
+            return;
+        }
+
+        if (path.equals("/api/settings/discord") && "POST".equalsIgnoreCase(method)) {
+            if (session.role != UniverseUserManager.Role.SUPER_ADMIN) {
+                sendJsonResponse(exchange, 403, "{\"error\":\"Permiso denegado\"}");
+                return;
+            }
+            String body = readRequestBody(exchange);
+            String botToken = extractJsonString(body, "botToken");
+            String clientId = extractJsonString(body, "clientId");
+            String clientSecret = extractJsonString(body, "clientSecret");
+            String guildId = extractJsonString(body, "guildId");
+            String roleId = extractJsonString(body, "roleId");
+            String redirectUri = extractJsonString(body, "redirectUri");
+            UniversePurpurConfig.updateDiscordConfig(botToken, clientId, clientSecret, guildId, roleId, redirectUri);
+            sendJsonResponse(exchange, 200, "{\"success\":true,\"message\":\"Configuración de Discord guardada correctamente\"}");
+            return;
+        }
+
+        if (path.equals("/api/discord/unlink") && "POST".equalsIgnoreCase(method)) {
+            if (session.role != UniverseUserManager.Role.SUPER_ADMIN) {
+                sendJsonResponse(exchange, 403, "{\"error\":\"Permiso denegado\"}");
+                return;
+            }
+            String body = readRequestBody(exchange);
+            String uuidStr = extractJsonString(body, "uuid");
+            String didStr = extractJsonString(body, "discordId");
+            boolean ok = false;
+            if (uuidStr != null && !uuidStr.isEmpty()) {
+                try {
+                    ok = UniverseDiscordLinker.instance().unlink(UUID.fromString(uuidStr));
+                } catch (Throwable ignore) {}
+            } else if (didStr != null && !didStr.isEmpty()) {
+                ok = UniverseDiscordLinker.instance().unlinkByDiscord(didStr);
+            }
+            sendJsonResponse(exchange, 200, "{\"success\":" + ok + ",\"message\":\"Cuenta desvinculada\"}");
+            return;
+        }
+
         // Users Management (List, Create, Delete, Password)
         if (path.equals("/api/users") && "GET".equalsIgnoreCase(method)) {
             if (session.role != UniverseUserManager.Role.SUPER_ADMIN) {
@@ -537,7 +871,12 @@ public final class UniverseWebPanel {
                   "mspt": %.2f,
                   "throttleLevel": %d,
                   "throttleName": "%s",
+                  "engine": "%s",
+                  "engineName": "%s",
                   "profile": "%s",
+                  "profileName": "%s",
+                  "discordConfigured": %b,
+                  "discordCallbackUrl": "%s",
                   "onlinePlayers": %d,
                   "maxPlayers": %d,
                   "loadedChunks": %d,
@@ -575,7 +914,12 @@ public final class UniverseWebPanel {
                 gov.getCurrentMspt(),
                 gov.getThrottleLevel(),
                 gov.getThrottleLevelName(),
+                UniversePurpurConfig.engine,
+                UniversePurpurConfig.getEngineName(),
                 UniversePurpurConfig.profile,
+                UniversePurpurConfig.getTunerName(),
+                (!UniversePurpurConfig.discordClientId.isEmpty()),
+                getDiscordCallbackUrl(exchange),
                 onlinePlayers,
                 maxPlayers,
                 chunks,
@@ -864,9 +1208,15 @@ public final class UniverseWebPanel {
         String action = extractJsonString(body, "action");
         String value = extractJsonString(body, "value");
 
-        if ("profile".equalsIgnoreCase(action) && value != null) {
+        if (("engine".equalsIgnoreCase(action) || "motor".equalsIgnoreCase(action)) && value != null) {
+            UniversePurpurConfig.setEngine(value.toLowerCase());
+            sendJsonResponse(exchange, 200, "{\"success\":true,\"engine\":\"" + escapeJson(UniversePurpurConfig.engine) + "\",\"engineName\":\"" + escapeJson(UniversePurpurConfig.getEngineName()) + "\"}");
+            return;
+        }
+
+        if (("profile".equalsIgnoreCase(action) || "tuner".equalsIgnoreCase(action)) && value != null) {
             UniversePurpurConfig.setProfile(value.toLowerCase());
-            sendJsonResponse(exchange, 200, "{\"success\":true,\"profile\":\"" + value + "\"}");
+            sendJsonResponse(exchange, 200, "{\"success\":true,\"profile\":\"" + escapeJson(UniversePurpurConfig.profile) + "\",\"tunerName\":\"" + escapeJson(UniversePurpurConfig.getTunerName()) + "\"}");
             return;
         }
 
@@ -1273,7 +1623,7 @@ public final class UniverseWebPanel {
     <div class="section-wrap" id="linkSection">
       <div class="link-section">
         <h3 style="font-size:24px; font-weight:800; color:#fff; margin-bottom:8px;">🔗 Vincula tu Cuenta con Discord</h3>
-        <p style="font-size:14px; color:var(--text-muted); margin-bottom:20px;">Sincroniza tus rangos, obtén recompensas exclusivas y activa la seguridad en dos pasos para tu cuenta de juego.</p>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:20px;">Sincroniza tus rangos automáticamente, obtén recompensas exclusivas y activa la seguridad en dos pasos para tu cuenta de juego.</p>
 
         <div class="link-steps">
           <div class="step-box">
@@ -1286,20 +1636,13 @@ public final class UniverseWebPanel {
           </div>
           <div class="step-box">
             <span>Paso 3</span>
-            <p>Pégalo aquí y confirma tu Discord</p>
+            <p>Inicia sesión y pega tu código aquí</p>
           </div>
         </div>
 
-        <div class="form-group">
-          <label>1. Código de Vinculación:</label>
-          <input type="text" id="linkCodeInput" placeholder="Ejemplo: UP-839201" maxlength="9" oninput="this.value = this.value.toUpperCase()">
+        <div id="discordAuthContainer">
+          <div style="text-align:center; padding:20px; color:var(--text-muted);">Cargando módulo de vinculación Discord...</div>
         </div>
-        <div class="form-group">
-          <label>2. Tu Usuario o ID de Discord:</label>
-          <input type="text" id="discordIdInput" placeholder="Ejemplo: MiUsuario#1234 o ID numérico">
-        </div>
-        <button class="btn-submit" onclick="submitDiscordLink()">Vincular Mi Cuenta Ahora</button>
-        <div id="linkResultMsg" style="margin-top:16px; font-size:14px; text-align:center; font-weight:bold;"></div>
       </div>
     </div>
   </main>
@@ -1325,6 +1668,11 @@ public final class UniverseWebPanel {
           }
           if (data.description) document.getElementById('heroDesc').innerText = data.description;
           if (data.serverIp) document.getElementById('ipText').innerText = data.serverIp;
+
+          // Hero Badge with Active Engine & Tuner
+          if (data.engineName) {
+            document.getElementById('heroBadgeText').innerText = 'EN LÍNEA • ' + data.engineName.toUpperCase() + ' (' + (data.profileName || data.profile || '').toUpperCase() + ')';
+          }
 
           // Ports
           if (data.ports) {
@@ -1401,19 +1749,142 @@ public final class UniverseWebPanel {
       }, 2500);
     }
 
-    async function submitDiscordLink() {
+    async function checkDiscordAuth() {
+      try {
+        const res = await fetch('/api/discord/me');
+        const d = await res.json();
+        const box = document.getElementById('discordAuthContainer');
+        if (!box) return;
+
+        if (d && d.authenticated) {
+          if (d.linked) {
+            box.innerHTML = `
+              <div style="display:flex; align-items:center; gap:16px; background:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.3); border-radius:14px; padding:20px; margin-bottom:15px; flex-wrap:wrap;">
+                <img src="${escapeHtml(d.avatarUrl)}" style="width:52px; height:52px; border-radius:50%; border:2px solid var(--accent-green);" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                <div style="flex:1;">
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <b style="font-size:16px; color:#fff;">${escapeHtml(d.displayName)}</b>
+                    <span style="font-size:12px; color:var(--text-muted);">@${escapeHtml(d.username)}</span>
+                    <span style="background:rgba(0,230,118,0.2); color:var(--accent-green); font-size:10px; font-weight:800; padding:2px 8px; border-radius:10px;">SESIÓN ACTIVA (14 DÍAS)</span>
+                  </div>
+                  <p style="font-size:14px; color:var(--accent-green); margin-top:6px; font-weight:700;">✔ Cuenta vinculada al jugador: <span style="color:#fff; text-decoration:underline;">${escapeHtml(d.player)}</span></p>
+                </div>
+                <a href="/link/logout" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; text-decoration:none; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:700; transition:0.2s;">Cerrar Sesión</a>
+              </div>
+            `;
+          } else {
+            box.innerHTML = `
+              <div style="display:flex; align-items:center; gap:16px; background:rgba(88,101,242,0.12); border:1px solid rgba(88,101,242,0.35); border-radius:14px; padding:18px; margin-bottom:20px; flex-wrap:wrap;">
+                <img src="${escapeHtml(d.avatarUrl)}" style="width:48px; height:48px; border-radius:50%; border:2px solid #5865F2;" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                <div style="flex:1;">
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <b style="font-size:15px; color:#fff;">${escapeHtml(d.displayName)}</b>
+                    <span style="font-size:12px; color:var(--text-muted);">@${escapeHtml(d.username)}</span>
+                    <span style="background:rgba(88,101,242,0.25); color:#8ea1e1; font-size:10px; font-weight:800; padding:2px 8px; border-radius:10px;">SESIÓN DISCORD ACTIVA (14 DÍAS)</span>
+                  </div>
+                  <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Solo introduce el código que te dio Minecraft al escribir <b>/link</b>:</p>
+                </div>
+                <a href="/link/logout" style="color:var(--text-muted); font-size:12px; text-decoration:underline;">Cambiar cuenta</a>
+              </div>
+              <div class="form-group">
+                <label>Código de Vinculación de Minecraft (/link):</label>
+                <input type="text" id="linkCodeInput" placeholder="Ejemplo: UP-839201" maxlength="9" oninput="this.value = this.value.toUpperCase()" style="font-size:20px; font-weight:900; letter-spacing:2px; text-align:center; padding:14px;">
+              </div>
+              <button class="btn-submit" style="background:linear-gradient(135deg, #5865F2, #4752c4);" onclick="submitDiscordLinkLogged()">🔗 Vincular con ${escapeHtml(d.displayName)}</button>
+              <div id="linkResultMsg" style="margin-top:16px; font-size:14px; text-align:center; font-weight:bold;"></div>
+            `;
+          }
+        } else {
+          // Not logged in with Discord
+          if (d && d.configured) {
+            box.innerHTML = `
+              <div style="text-align:center; background:rgba(88,101,242,0.08); border:1px solid rgba(88,101,242,0.25); border-radius:16px; padding:28px 20px; margin-bottom:20px;">
+                <p style="font-size:14px; color:var(--text-muted); margin-bottom:18px;">Inicia sesión con Discord una sola vez. Tu sesión durará <b>2 semanas (14 días)</b> y solo tendrás que escribir tu código de Minecraft.</p>
+                <a href="/link/login" style="background:#5865F2; color:#fff; text-decoration:none; padding:14px 28px; border-radius:12px; font-weight:800; font-size:15px; display:inline-flex; align-items:center; gap:12px; box-shadow:0 6px 25px rgba(88,101,242,0.45); transition:0.25s;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                  Iniciar Sesión con Discord
+                </a>
+              </div>
+              <details style="margin-top:10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:14px 18px;">
+                <summary style="font-size:13px; color:var(--text-muted); cursor:pointer; font-weight:700;">⚙️ O vincular manualmente sin inicio de sesión OAuth</summary>
+                <div style="margin-top:16px;">
+                  <div class="form-group">
+                    <label>Código de Vinculación (/link en Minecraft):</label>
+                    <input type="text" id="manualCodeInput" placeholder="Ejemplo: UP-839201" maxlength="9" oninput="this.value = this.value.toUpperCase()">
+                  </div>
+                  <div class="form-group">
+                    <label>Tu Usuario o ID de Discord:</label>
+                    <input type="text" id="manualDiscordInput" placeholder="Ejemplo: MiUsuario o ID 1234567890">
+                  </div>
+                  <button class="btn-submit" onclick="submitDiscordLinkManual()">Vincular Manualmente</button>
+                  <div id="manualResultMsg" style="margin-top:14px; font-size:14px; text-align:center; font-weight:bold;"></div>
+                </div>
+              </details>
+            `;
+          } else {
+            // Discord OAuth not configured on server, show manual fallback
+            box.innerHTML = `
+              <div class="form-group">
+                <label>1. Código de Vinculación (/link en Minecraft):</label>
+                <input type="text" id="linkCodeInput" placeholder="Ejemplo: UP-839201" maxlength="9" oninput="this.value = this.value.toUpperCase()">
+              </div>
+              <div class="form-group">
+                <label>2. Tu Usuario o ID de Discord:</label>
+                <input type="text" id="discordIdInput" placeholder="Ejemplo: MiUsuario o ID numérico">
+              </div>
+              <button class="btn-submit" onclick="submitDiscordLinkManual()">Vincular Mi Cuenta Ahora</button>
+              <div id="linkResultMsg" style="margin-top:16px; font-size:14px; text-align:center; font-weight:bold;"></div>
+            `;
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function submitDiscordLinkLogged() {
       const code = document.getElementById('linkCodeInput').value.trim();
-      const discord = document.getElementById('discordIdInput').value.trim();
       const msg = document.getElementById('linkResultMsg');
+      if (!code) {
+        msg.innerText = 'Por favor escribe el código de Minecraft.';
+        msg.style.color = '#ff1744';
+        return;
+      }
+      msg.innerText = 'Verificando con tu Discord...';
+      msg.style.color = '#00f0ff';
+      try {
+        const res = await fetch('/api/link/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: code })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+          msg.innerText = '✔ ' + data.message;
+          msg.style.color = '#00e676';
+          setTimeout(checkDiscordAuth, 1200);
+          loadData();
+        } else {
+          msg.innerText = '❌ ' + (data ? data.message : 'Error al verificar');
+          msg.style.color = '#ff1744';
+        }
+      } catch (err) {
+        msg.innerText = '❌ Error de red con el servidor';
+        msg.style.color = '#ff1744';
+      }
+    }
+
+    async function submitDiscordLinkManual() {
+      const codeEl = document.getElementById('manualCodeInput') || document.getElementById('linkCodeInput');
+      const didEl = document.getElementById('manualDiscordInput') || document.getElementById('discordIdInput');
+      const msg = document.getElementById('manualResultMsg') || document.getElementById('linkResultMsg');
+      const code = codeEl ? codeEl.value.trim() : '';
+      const discord = didEl ? didEl.value.trim() : '';
       if (!code || !discord) {
         msg.innerText = 'Por favor completa todos los campos.';
         msg.style.color = '#ff1744';
         return;
       }
-
       msg.innerText = 'Verificando código...';
       msg.style.color = '#00f0ff';
-
       try {
         const res = await fetch('/api/link/verify', {
           method: 'POST',
@@ -1424,8 +1895,9 @@ public final class UniverseWebPanel {
         if (data && data.success) {
           msg.innerText = '✔ ' + data.message;
           msg.style.color = '#00e676';
-          document.getElementById('linkCodeInput').value = '';
-          document.getElementById('discordIdInput').value = '';
+          if (codeEl) codeEl.value = '';
+          if (didEl) didEl.value = '';
+          setTimeout(checkDiscordAuth, 1200);
           loadData();
         } else {
           msg.innerText = '❌ ' + (data ? data.message : 'Error al verificar');
@@ -1438,6 +1910,7 @@ public final class UniverseWebPanel {
     }
 
     loadData();
+    checkDiscordAuth();
     setInterval(loadData, 2500);
   </script>
 </body>
@@ -1620,6 +2093,7 @@ public final class UniverseWebPanel {
       <button class="nav-btn" id="nav-players" onclick="showTab('players')"><span class="nav-icon">👥</span> Jugadores</button>
       <button class="nav-btn" id="nav-console" onclick="showTab('console')"><span class="nav-icon">💻</span> Consola Titan</button>
       <button class="nav-btn" id="nav-tuning" onclick="showTab('tuning')"><span class="nav-icon">⚡</span> Motor & Tuner</button>
+      <button class="nav-btn" id="nav-discord" onclick="showTab('discord')"><span class="nav-icon">🤖</span> Discord Linker</button>
       <button class="nav-btn" id="nav-branding" onclick="showTab('branding')"><span class="nav-icon">🎨</span> Branding & Web</button>
       <button class="nav-btn" id="nav-users" onclick="showTab('users')"><span class="nav-icon">🔑</span> Usuarios & Roles</button>
     </nav>
@@ -1642,6 +2116,11 @@ public final class UniverseWebPanel {
             <h3>Rendimiento del Motor <span class="pill pill-green" id="throttlePill">Óptimo</span></h3>
             <div class="val" id="tpsVal">20.00</div>
             <div class="sub">Tick MSPT: <span id="msptVal" style="color:var(--cyan);">0.0 ms</span> | Chunks: <span id="chunksVal">0</span></div>
+          </div>
+          <div class="card">
+            <h3>Motor & Tuner Activo <span class="pill pill-green" id="dashEngineBadge">TITAN</span></h3>
+            <div class="val" id="dashEngineVal" style="font-size:16px; color:var(--cyan); line-height:1.2; margin-top:6px;">Titan Hyper-Scale</div>
+            <div class="sub">Tuner: <b id="dashTunerVal" style="color:var(--yellow);">Ultra-Low RAM</b></div>
           </div>
           <div class="card">
             <h3>Jugadores Online <span class="pill pill-green" id="profileBadge">Profile</span></h3>
@@ -1762,24 +2241,71 @@ public final class UniverseWebPanel {
       <!-- TAB: TUNING -->
       <section id="tab-tuning" class="tab">
         <div class="card" style="margin-bottom:20px;">
-          <h3>Ajustes de Perfiles del Motor</h3>
-          <p style="font-size:13px; color:var(--muted); margin:8px 0 16px;">Cambia el comportamiento interno del servidor en caliente sin necesidad de reiniciar.</p>
+          <h3>⚙️ Motor del Servidor (Server Engine)</h3>
+          <p style="font-size:13px; color:var(--muted); margin:8px 0 16px;">Selecciona el motor de procesamiento para el servidor. Los cambios se aplican en caliente de forma inmediata.</p>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px;">
+            <div id="engine-card-titan-hyper-scale" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:18px; border-width:2px; border-color:var(--cyan);" onclick="setEngine('titan-hyper-scale')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:var(--cyan); font-size:14px;">⚡ Titan Hyper-Scale</b>
+                <span class="pill pill-green" id="engine-badge-titan-hyper-scale">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:6px; line-height:1.4;">Particionado Espacial O(1), Hibernación Cero-Jugadores, Token Bucket Netty, Dynamic Brain Activation (DAB) y Anti-Crash Shield (+15k jugadores).</span>
+            </div>
+            <div id="engine-card-purpur-optimized" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:18px; border-width:2px;" onclick="setEngine('purpur-optimized')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:var(--purple); font-size:14px;">🚀 Purpur Optimized</b>
+                <span class="pill pill-green" id="engine-badge-purpur-optimized" style="display:none;">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:6px; line-height:1.4;">Núcleo Purpur de alto rendimiento con optimización de tolvas, entidades y tick skipping sin hibernación extrema.</span>
+            </div>
+            <div id="engine-card-vanilla-fidelity" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:18px; border-width:2px;" onclick="setEngine('vanilla-fidelity')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:#ffd600; font-size:14px;">🧱 Vanilla High-Fidelity</b>
+                <span class="pill pill-green" id="engine-badge-vanilla-fidelity" style="display:none;">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:6px; line-height:1.4;">Física 100% estándar de Mojang, colisiones clásicas y redstone sin saltos de ticks para servidores técnicos de granjas.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:20px;">
+          <h3>🎛️ Tuner de Rendimiento (Performance Profiles)</h3>
+          <p style="font-size:13px; color:var(--muted); margin:8px 0 16px;">Ajusta el perfil de simulación, distancias y asignación de recursos según la modalidad del servidor.</p>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px;">
-            <div class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px;" onclick="setProfile('ultra-low-ram-cpu')">
-              <b style="color:var(--green);">🍃 ultra-low-ram-cpu</b>
-              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Para VPS y hostings económicos. View-dist 4, sim-dist 2, 0 colisiones.</span>
+            <div id="tuner-card-ultra-low-ram-cpu" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px; border-width:2px; border-color:var(--green);" onclick="setProfile('ultra-low-ram-cpu')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:var(--green);">🍃 ultra-low-ram-cpu</b>
+                <span class="pill pill-green" id="tuner-badge-ultra-low-ram-cpu">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Para VPS y hostings económicos. View-dist 4, sim-dist 2, 0 colisiones, recolección agresiva.</span>
             </div>
-            <div class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px;" onclick="setProfile('15k-hyper-hub')">
-              <b style="color:var(--cyan);">🏛️ 15k-hyper-hub</b>
-              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Lobbies gigantes de 3k a 15k usuarios. Player culling dinámico a 24.</span>
+            <div id="tuner-card-15k-hyper-hub" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px; border-width:2px;" onclick="setProfile('15k-hyper-hub')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:var(--cyan);">🏛️ 15k-hyper-hub</b>
+                <span class="pill pill-green" id="tuner-badge-15k-hyper-hub" style="display:none;">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Lobbies gigantes de 3k a 15k usuarios. Player culling dinámico a 24 jugadores visibles.</span>
             </div>
-            <div class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px;" onclick="setProfile('15k-mega-arena')">
-              <b style="color:var(--purple);">⚔️ 15k-mega-arena</b>
-              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Arenas de Bedwars, Skywars, Duels con tick rate optimizado.</span>
+            <div id="tuner-card-15k-mega-arena" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px; border-width:2px;" onclick="setProfile('15k-mega-arena')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:var(--purple);">⚔️ 15k-mega-arena</b>
+                <span class="pill pill-green" id="tuner-badge-15k-mega-arena" style="display:none;">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Arenas de Bedwars, Skywars, Duels con tick rate optimizado para hits exactos.</span>
             </div>
-            <div class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px;" onclick="setProfile('15k-scale-smp')">
-              <b style="color:var(--yellow);">🌲 15k-scale-smp</b>
-              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Supervivencia masiva y Skyblock con IA mob adaptativa.</span>
+            <div id="tuner-card-15k-scale-smp" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px; border-width:2px;" onclick="setProfile('15k-scale-smp')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:var(--yellow);">🌲 15k-scale-smp</b>
+                <span class="pill pill-green" id="tuner-badge-15k-scale-smp" style="display:none;">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Supervivencia masiva y Skyblock con IA mob adaptativa y límites de spawn elásticos.</span>
+            </div>
+            <div id="tuner-card-balanced" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px; border-width:2px;" onclick="setProfile('balanced')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:#f72585;">⚖️ balanced</b>
+                <span class="pill pill-green" id="tuner-badge-balanced" style="display:none;">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Equilibrio general entre simulación de mundo, carga de chunks y uso de RAM/CPU.</span>
             </div>
           </div>
         </div>
@@ -1792,6 +2318,82 @@ public final class UniverseWebPanel {
             <button class="btn" style="background:#f77f00;" onclick="triggerPurge('monsters')">🧟 Purgar Mobs Hostiles</button>
             <button class="btn" style="background:#7209b7;" onclick="setLag('auto')">🛡️ Escudo AUTO</button>
             <button class="btn" style="background:#d90429;" onclick="setLag('on')">⚠️ Lockdown de Emergencia</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: DISCORD LINKER -->
+      <section id="tab-discord" class="tab">
+        <div class="card" style="margin-bottom:20px;">
+          <h3>🤖 Configuración de Discord Bot & OAuth2 Linker</h3>
+          <p style="font-size:13px; color:var(--muted); margin:6px 0 18px;">Configura la integración oficial con Discord para inicio de sesión en el portal web, vinculación de cuentas con Minecraft (/link) y entrega automática de roles.</p>
+          
+          <div style="background:rgba(88,101,242,0.1); border:1px solid rgba(88,101,242,0.3); border-radius:12px; padding:16px; margin-bottom:20px;">
+            <div style="font-size:12px; font-weight:800; color:var(--cyan); text-transform:uppercase; margin-bottom:6px;">📋 Callback URL (OAuth2 Redirect URI para Discord Developer Portal):</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <input type="text" id="dCallbackUrl" readonly style="flex:1; min-width:280px; background:#070914; border:1px solid var(--border); color:var(--green); font-family:monospace; font-size:13px; padding:11px 14px; border-radius:8px;" value="http://panel.scon.host:25566/link/callback">
+              <button class="btn" style="background:#5865F2;" onclick="copyDiscordCallback()">📋 Copiar Callback</button>
+            </div>
+            <small style="display:block; margin-top:8px; color:var(--muted); font-size:12px;">Pega este Callback URL en <b>Discord Developer Portal -&gt; OAuth2 -&gt; Redirects</b>. Las sesiones web duran mínimo <b>14 días (2 semanas)</b>.</small>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Discord Bot Token (Developer Portal -&gt; Bot):</label>
+              <input type="password" id="dBotToken" placeholder="MTAx... (Token del Bot)">
+            </div>
+            <div class="form-group">
+              <label>Client ID (Application ID):</label>
+              <input type="text" id="dClientId" placeholder="123456789012345678">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Client Secret (OAuth2 Secret):</label>
+              <input type="password" id="dClientSecret" placeholder="••••••••••••••••••••••••••••••••">
+            </div>
+            <div class="form-group">
+              <label>Guild ID (ID del Servidor de Discord):</label>
+              <input type="text" id="dGuildId" placeholder="123456789012345678">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Role ID (Rol otorgado automáticamente al vincular):</label>
+              <input type="text" id="dRoleId" placeholder="ID numérico del Rol en Discord">
+            </div>
+            <div class="form-group">
+              <label>Redirect URI personalizado (Opcional):</label>
+              <input type="text" id="dRedirectUri" placeholder="Dejar en blanco para autodetección por Host">
+            </div>
+          </div>
+
+          <button class="btn" style="background:linear-gradient(135deg, #5865F2, #7289da);" onclick="saveDiscordConfig()">💾 Guardar Configuración de Discord</button>
+        </div>
+
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>👥 Cuentas de Jugadores Vinculadas (<span id="discordTotalCount">0</span>)</h3>
+            <button class="btn" style="padding:6px 14px;" onclick="loadDiscordConfig()">🔄 Refrescar Cuentas</button>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Jugador de Minecraft</th>
+                  <th>UUID</th>
+                  <th>Usuario de Discord</th>
+                  <th>Discord ID</th>
+                  <th>Fecha de Vinculación</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="discordLinksBody">
+                <tr><td colspan="6" style="text-align:center; color:var(--muted); padding:20px;">Cargando vinculaciones...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -2056,6 +2658,7 @@ public final class UniverseWebPanel {
       if (targetNav) targetNav.classList.add('active');
       if (id === 'players') loadPlayers();
       if (id === 'users') loadUsers();
+      if (id === 'discord') loadDiscordConfig();
     }
 
     async function loadMe() {
@@ -2093,6 +2696,32 @@ public final class UniverseWebPanel {
       document.getElementById('profileBadge').innerText = data.profile || 'default';
       document.getElementById('spatialVal').innerText = data.spatialBuckets || 0;
       document.getElementById('linkedVal').innerText = data.linkedAccountsCount || 0;
+
+      // Active Engine & Tuner Cards
+      if (data.engineName) {
+        document.getElementById('dashEngineVal').innerText = data.engineName;
+        document.getElementById('dashEngineBadge').innerText = (data.engine || 'TITAN').toUpperCase();
+      }
+      if (data.profileName) {
+        document.getElementById('dashTunerVal').innerText = data.profileName;
+      }
+
+      // Update Engine & Tuner selection in tab-tuning
+      const curEng = (data.engine || 'titan-hyper-scale').toLowerCase();
+      ['titan-hyper-scale', 'purpur-optimized', 'vanilla-fidelity'].forEach(e => {
+        const el = document.getElementById('engine-card-' + e);
+        const bd = document.getElementById('engine-badge-' + e);
+        if (el) el.style.borderColor = (curEng === e) ? 'var(--cyan)' : 'var(--border)';
+        if (bd) bd.style.display = (curEng === e) ? 'inline-block' : 'none';
+      });
+
+      const curTun = (data.profile || 'ultra-low-ram-cpu').toLowerCase();
+      ['ultra-low-ram-cpu', '15k-hyper-hub', '15k-mega-arena', '15k-scale-smp', 'balanced'].forEach(t => {
+        const el = document.getElementById('tuner-card-' + t);
+        const bd = document.getElementById('tuner-badge-' + t);
+        if (el) el.style.borderColor = (curTun === t) ? 'var(--green)' : 'var(--border)';
+        if (bd) bd.style.display = (curTun === t) ? 'inline-block' : 'none';
+      });
 
       document.getElementById('ramVal').innerText = (data.usedMemoryMb || 0) + ' MB / ' + (data.maxMemoryMb || 0) + ' MB';
       const ramPct = (data.memoryUsagePercent || 0).toFixed(1);
@@ -2349,9 +2978,79 @@ public final class UniverseWebPanel {
       refreshStatus();
     }
 
+    async function setEngine(name) {
+      const res = await api('/api/actions', 'POST', { action: 'engine', value: name });
+      showToast('Motor cambiado a: ' + (res && res.engineName ? res.engineName : name), 'success');
+      refreshStatus();
+    }
+
     async function setProfile(name) {
-      await api('/api/actions', 'POST', { action: 'profile', value: name });
-      showToast('Perfil cambiado a: ' + name, 'success');
+      const res = await api('/api/actions', 'POST', { action: 'profile', value: name });
+      showToast('Perfil cambiado a: ' + (res && res.tunerName ? res.tunerName : name), 'success');
+      refreshStatus();
+    }
+
+    async function loadDiscordConfig() {
+      const data = await api('/api/settings/discord');
+      if (!data) return;
+      if (data.callbackUrl) document.getElementById('dCallbackUrl').value = data.callbackUrl;
+      document.getElementById('dBotToken').value = data.botToken || '';
+      document.getElementById('dClientId').value = data.clientId || '';
+      document.getElementById('dClientSecret').value = data.clientSecret || '';
+      document.getElementById('dGuildId').value = data.guildId || '';
+      document.getElementById('dRoleId').value = data.roleId || '';
+      document.getElementById('dRedirectUri').value = data.redirectUri || '';
+      document.getElementById('discordTotalCount').innerText = data.totalLinked || 0;
+
+      const tbody = document.getElementById('discordLinksBody');
+      if (!data.links || data.links.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:20px;">No hay cuentas vinculadas todavía.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.links.map(l => `
+        <tr>
+          <td>
+            <div class="player-row">
+              <img src="https://mc-heads.net/avatar/${escapeHtml(l.player)}/28" class="player-avatar" onerror="this.src='https://mc-heads.net/avatar/Steve/28'">
+              <b>${escapeHtml(l.player)}</b>
+            </div>
+          </td>
+          <td><code>${escapeHtml(l.uuid)}</code></td>
+          <td><b style="color:var(--cyan);">${escapeHtml(l.discordTag)}</b></td>
+          <td><code>${escapeHtml(l.discordId)}</code></td>
+          <td>${new Date(l.linkedAt).toLocaleString()}</td>
+          <td>
+            <button class="btn-act btn-ban" onclick="unlinkDiscord('${escapeHtml(l.uuid)}', '${escapeHtml(l.discordId)}')">Desvincular</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function copyDiscordCallback() {
+      const cb = document.getElementById('dCallbackUrl').value;
+      navigator.clipboard.writeText(cb);
+      showToast('✔ Callback URL copiado al portapapeles', 'success');
+    }
+
+    async function saveDiscordConfig() {
+      const body = {
+        botToken: document.getElementById('dBotToken').value.trim(),
+        clientId: document.getElementById('dClientId').value.trim(),
+        clientSecret: document.getElementById('dClientSecret').value.trim(),
+        guildId: document.getElementById('dGuildId').value.trim(),
+        roleId: document.getElementById('dRoleId').value.trim(),
+        redirectUri: document.getElementById('dRedirectUri').value.trim()
+      };
+      const res = await api('/api/settings/discord', 'POST', body);
+      showToast(res ? res.message : 'Error al guardar', res && res.success ? 'success' : 'error');
+      loadDiscordConfig();
+    }
+
+    async function unlinkDiscord(uuid, did) {
+      if (!confirm('¿Desvincular esta cuenta de Discord?')) return;
+      const res = await api('/api/discord/unlink', 'POST', { uuid, discordId: did });
+      showToast(res ? res.message : 'Cuenta desvinculada', res && res.success ? 'success' : 'error');
+      loadDiscordConfig();
       refreshStatus();
     }
 
