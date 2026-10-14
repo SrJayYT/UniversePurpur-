@@ -62,3 +62,9 @@ manifest.mf
 test-plugin.settings.gradle.kts
 
 build_universe/
+test_run/
+build_adventure/
+adv420.txt
+adv426.txt
+find_*.ps1
+release_id.txt

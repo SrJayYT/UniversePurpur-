@@ -25,20 +25,20 @@ public final class UniverseBanner {
         String tokenStr = UniversePurpurConfig.webPanelAuthToken.isEmpty() ? "None (Open)" : UniversePurpurConfig.webPanelAuthToken;
 
         String banner = String.format("""
-                \u001B[36m
-                 _    _       _                                _____       _             _   
-                | |  | |     (_)                             / ____|     (_)           | |  
-                | |  | |_ __  _ _   _____ _ __ ___  ___     | (___  _ __  _  __ _  ___ | |_ 
-                | |  | | '_ \\| | \\ / / _ \\ '__/ __|/ _ \\     \\___ \\| '_ \\| |/ _` |/ _ \\| __|
-                | |__| | | | | |\\ V /  __/ |  \\__ \\  __/     ____) | |_) | | (_| | (_) | |_ 
-                 \\____/|_| |_|_| \\_/ \\___|_|  |___/\\___|    |_____/| .__/|_|\\__, |\\___/ \\__|
-                                                                   | |       __/ |          
-                                                                   |_|      |___/           
-                \u001B[33m  TITAN HYPER-SCALE EDITION v5.0 | Target: +15,000 Concurrent Players
-                \u001B[32m  Author: DevPapo | Architecture: 5-Tier Governor, Spatial Grid & CAS Token Bucket
+                \u001B[35m
+                 _    _       _                                _____                                
+                | |  | |     (_)                             |  __ \\                               
+                | |  | |_ __  _ _   _____ _ __ ___  ___      | |__) |   _ _ __ _ __  _   _ _ __    
+                | |  | | '_ \\| | \\ / / _ \\ '__/ __|/ _ \\     |  ___/ | | | '__| '_ \\| | | | '__|   
+                | |__| | | | | |\\ V /  __/ |  \\__ \\  __/     | |   | |_| | |  | |_) | |_| | |      
+                 \\____/|_| |_|_| \\_/ \\___|_|  |___/\\___|     |_|    \\__,_|_|  | .__/ \\__,_|_|      
+                                                                               | |                  
+                                                                               |_|                  
+                \u001B[33m  TITAN HYPER-SCALE ENGINE | Target: +15,000 Concurrent Players
+                \u001B[32m  Author: DevPapo (admin@scon.host) | High-Performance Server Software
                 \u001B[37m  System: %d Cores | %d MB RAM | Java %s (%s)
                 \u001B[35m  Active Profile: %s | Dynamic Throttle: %s
-                \u001B[36m  Network Ports (2 Default / 3 Geyser): Java: %d | Web Admin: %d | Geyser: %d
+                \u001B[36m  Network Ports: Java: %d | Web Admin: %d | Geyser: %d
                 \u001B[32m  Web Admin Panel: http://127.0.0.1:%d (Token: %s)\u001B[0m
                 """, cores, maxRamMb, javaVer, osName, UniversePurpurConfig.profile, throttle, javaPort, webPort, geyserPort, webPort, tokenStr);
 

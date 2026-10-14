@@ -804,7 +804,7 @@ public final class UniverseWebPanel {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UniversePurpur | Servidor Oficial</title>
-  <link rel="icon" type="image/x-icon" href="https://purpurmc.org/favicon.ico">
+  <link rel="icon" type="image/x-icon" href="https://scon.host/favicon.ico">
   <style>
     :root {
       --bg: #07080f;
@@ -999,7 +999,7 @@ public final class UniverseWebPanel {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UniversePurpur | Admin Control Center</title>
-  <link rel="icon" type="image/x-icon" href="https://purpurmc.org/favicon.ico">
+  <link rel="icon" type="image/x-icon" href="https://scon.host/favicon.ico">
   <style>
     :root {
       --bg: #090a12;

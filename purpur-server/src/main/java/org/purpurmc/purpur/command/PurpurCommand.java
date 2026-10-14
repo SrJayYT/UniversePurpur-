@@ -19,8 +19,8 @@ import java.util.stream.Stream;
 public class PurpurCommand extends Command {
     public PurpurCommand(String name) {
         super(name);
-        this.description = "Purpur related commands";
-        this.usageMessage = "/purpur [reload | version]";
+        this.description = "UniversePurpur core commands";
+        this.usageMessage = "/universepurpur [reload | version | status | stats]";
         this.setPermission("bukkit.command.purpur");
     }
 
@@ -56,7 +56,7 @@ public class PurpurCommand extends Command {
             }
             console.server.reloadCount++;
 
-            Command.broadcastCommandMessage(sender, Component.text("Purpur + UniversePurpur config reload complete.", NamedTextColor.GREEN));
+            Command.broadcastCommandMessage(sender, Component.text("Configuracion de UniversePurpur recargada exitosamente.", NamedTextColor.GREEN));
         } else if (args[0].equalsIgnoreCase("version")) {
             Command verCmd = org.bukkit.Bukkit.getServer().getCommandMap().getCommand("version");
             if (verCmd != null) {

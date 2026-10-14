@@ -40,15 +40,9 @@ import org.purpurmc.purpur.task.TPSBarTask;
 
 @SuppressWarnings("unused")
 public class PurpurConfig {
-    private static final String HEADER = "This is the main configuration file for Purpur.\n"
-            + "As you can see, there's tons to configure. Some options may impact gameplay, so use\n"
-            + "with caution, and make sure you know what each option does before configuring.\n"
-            + "\n"
-            + "If you need help with the configuration or have any questions related to Purpur,\n"
-            + "join us in our Discord guild.\n"
-            + "\n"
-            + "Website: https://purpurmc.org \n"
-            + "Docs: https://purpurmc.org/docs \n";
+    private static final String HEADER = "This is the main configuration file for UniversePurpur (+15,000 Players Titan Engine).\n"
+            + "Ultra-optimized Minecraft server software developed by DevPapo (admin@scon.host).\n"
+            + "GitHub: https://github.com/SrJayYT/UniversePurpur- \n";
     private static File CONFIG_FILE;
     public static YamlConfiguration config;
 
@@ -80,6 +74,8 @@ public class PurpurConfig {
         commands.put("help", new org.purpurmc.purpur.command.UniverseHelpCommand("help"));
         commands.put("tps", new org.purpurmc.purpur.command.UniverseTpsCommand("tps"));
         commands.put("universepurpur", new org.purpurmc.purpur.command.UniversePurpurCommand("universepurpur"));
+        commands.put("universe", new org.purpurmc.purpur.command.UniversePurpurCommand("universe"));
+        commands.put("up", new org.purpurmc.purpur.command.UniversePurpurCommand("up"));
 
         version = getInt("config-version", 48);
         set("config-version", 48);
@@ -102,7 +98,7 @@ public class PurpurConfig {
 
     public static void registerCommands() {
         for (Map.Entry<String, Command> entry : commands.entrySet()) {
-            MinecraftServer.getServer().server.getCommandMap().register(entry.getKey(), "Purpur", entry.getValue());
+            MinecraftServer.getServer().server.getCommandMap().register(entry.getKey(), "UniversePurpur", entry.getValue());
         }
         try {
             org.bukkit.command.SimpleCommandMap commandMap = MinecraftServer.getServer().server.getCommandMap();
@@ -280,9 +276,9 @@ public class PurpurConfig {
         deathMessageOnlyBroadcastToAffectedPlayer = getBoolean("settings.broadcasts.death.only-broadcast-to-affected-player", deathMessageOnlyBroadcastToAffectedPlayer);
     }
 
-    public static String serverModName = io.papermc.paper.ServerBuildInfo.buildInfo().brandName();
+    public static String serverModName = "UniversePurpur";
     private static void serverModName() {
-        serverModName = getString("settings.server-mod-name", serverModName);
+        serverModName = getString("settings.server-mod-name", "UniversePurpur");
     }
 
     public static double laggingThreshold = 19.0D;
