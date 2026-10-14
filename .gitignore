@@ -69,3 +69,5 @@ adv420.txt
 adv426.txt
 find_*.ps1
 release_id.txt
+
+*.class
