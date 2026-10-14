@@ -158,6 +158,7 @@ public final class UniversePurpurConfig {
         optimizeServerProperties(serverRootDir);
         try {
             org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.init(serverRootDir);
+            org.purpurmc.purpur.multiversion.UniverseGeyserManager.init(serverRootDir);
             org.purpurmc.purpur.task.UniverseGovernorTask.instance().start();
             org.purpurmc.purpur.task.UniverseMemoryGovernor.instance().start();
             org.purpurmc.purpur.web.UniverseWebPanel.instance().start();
@@ -366,6 +367,44 @@ public final class UniversePurpurConfig {
         webPanelAuthToken = getString("global.web-panel.auth-token", webPanelAuthToken);
         webPanelAllowCommands = getBoolean("global.web-panel.allow-remote-commands", webPanelAllowCommands);
         geyserPort = getInt("global.geyser.bedrock-port", geyserPort);
+
+        // Environment Variable & System Property Overrides (Critical for Pterodactyl & Cloud Hosting)
+        String envWebPort = System.getenv("WEB_PORT");
+        if (envWebPort == null || envWebPort.isEmpty()) envWebPort = System.getProperty("universe.web-panel.port");
+        if (envWebPort != null && !envWebPort.isEmpty()) {
+            try {
+                webPanelPort = Integer.parseInt(envWebPort.trim());
+                if (config != null) config.set("global.web-panel.port", webPanelPort);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        String envGeyserPort = System.getenv("GEYSER_PORT");
+        if (envGeyserPort == null || envGeyserPort.isEmpty()) envGeyserPort = System.getProperty("universe.geyser.port");
+        if (envGeyserPort != null && !envGeyserPort.isEmpty()) {
+            try {
+                geyserPort = Integer.parseInt(envGeyserPort.trim());
+                if (config != null) config.set("global.geyser.bedrock-port", geyserPort);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        String envAuthToken = System.getenv("WEB_AUTH_TOKEN");
+        if (envAuthToken == null || envAuthToken.isEmpty()) envAuthToken = System.getProperty("universe.web-panel.auth-token");
+        if (envAuthToken != null && !envAuthToken.isEmpty()) {
+            webPanelAuthToken = envAuthToken.trim();
+            if (config != null) config.set("global.web-panel.auth-token", webPanelAuthToken);
+        }
+
+        String envProfile = System.getenv("UNIVERSE_PROFILE");
+        if (envProfile == null || envProfile.isEmpty()) envProfile = System.getProperty("universe.profile");
+        if (envProfile != null && !envProfile.isEmpty()) {
+            profile = envProfile.trim();
+            if (config != null) config.set("performance.profile", profile);
+        }
+
+        String envServerIp = System.getenv("SERVER_IP");
+        if (envServerIp != null && !envServerIp.isEmpty() && !envServerIp.equals("0.0.0.0")) {
+            webServerIpAddress = envServerIp.trim();
+        }
 
         // Web Branding Defaults
         webServerTitle = getString("global.web-panel.branding.title", webServerTitle);

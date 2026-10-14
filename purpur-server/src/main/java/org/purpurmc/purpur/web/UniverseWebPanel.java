@@ -113,10 +113,20 @@ public final class UniverseWebPanel {
                 Bukkit.getPluginManager().registerEvents(chunkListener, PLUGIN);
             }
 
+            String displayHost = UniversePurpurConfig.webServerIpAddress;
+            if (displayHost == null || displayHost.isEmpty() || displayHost.equals("play.yournetwork.net")) {
+                String envHost = System.getenv("SERVER_IP");
+                if (envHost != null && !envHost.isEmpty() && !envHost.equals("0.0.0.0")) {
+                    displayHost = envHost;
+                } else {
+                    displayHost = "0.0.0.0";
+                }
+            }
+
             Bukkit.getLogger().info(String.format(
                     "\u001B[32m[UniversePurpur] Web Server online: Public Portal at http://%s:%d | Admin Panel at http://%s:%d/admin\u001B[0m",
-                    (host == null || host.equals("0.0.0.0")) ? "127.0.0.1" : host, port,
-                    (host == null || host.equals("0.0.0.0")) ? "127.0.0.1" : host, port
+                    displayHost, port,
+                    displayHost, port
             ));
         } catch (Throwable ex) {
             Bukkit.getLogger().log(Level.WARNING, "[UniversePurpur] Could not start Web Panel on port " + UniversePurpurConfig.webPanelPort, ex);

@@ -160,8 +160,19 @@ public class UniversePurpurCommand extends Command {
                 .append(Component.text("1.21.x -> 1.26.x (Full Range)", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
                 .append(Component.text(UniverseMultiVersionManager.isMultiVersionActive() ? " [ACTIVO]" : " [CARGADO]", NamedTextColor.GREEN)));
 
+        int javaPort = Bukkit.getPort();
+        if (javaPort <= 0) {
+            String envServerPort = System.getenv("SERVER_PORT");
+            if (envServerPort != null && !envServerPort.isEmpty()) {
+                try {
+                    javaPort = Integer.parseInt(envServerPort.trim());
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        if (javaPort <= 0) javaPort = 25565;
+
         sender.sendMessage(Component.text(" • Puertos Activos: ", NamedTextColor.GRAY)
-                .append(Component.text("MC Java: " + (Bukkit.getPort() > 0 ? Bukkit.getPort() : 25565), NamedTextColor.WHITE))
+                .append(Component.text("MC Java: " + javaPort, NamedTextColor.WHITE))
                 .append(Component.text(" | Web Admin: " + UniversePurpurConfig.webPanelPort, NamedTextColor.AQUA))
                 .append(Component.text(" | Bedrock UDP: " + UniversePurpurConfig.geyserPort, NamedTextColor.GREEN)));
 
