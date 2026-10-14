@@ -719,17 +719,140 @@ public final class UniverseWebPanel {
         CompletableFuture<String> cmdFuture = new CompletableFuture<>();
         Bukkit.getScheduler().runTask(PLUGIN, () -> {
             try {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-                cmdFuture.complete("{\"success\":true,\"dispatched\":\"" + cmd.replace("\"", "\\\"") + "\"}");
+                org.bukkit.command.ConsoleCommandSender originalConsole = Bukkit.getConsoleSender();
+                java.util.List<String> outputLines = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+                java.lang.reflect.InvocationHandler handler = (proxy, method, args) -> {
+                    String name = method.getName();
+                    if ("sendMessage".equals(name) && args != null && args.length > 0) {
+                        for (Object arg : args) {
+                            if (arg instanceof String s) {
+                                for (String part : s.split("\r?\n")) {
+                                    outputLines.add(part);
+                                }
+                            } else if (arg instanceof String[] arr) {
+                                for (String s : arr) {
+                                    if (s != null) {
+                                        for (String part : s.split("\r?\n")) {
+                                            outputLines.add(part);
+                                        }
+                                    }
+                                }
+                            } else if (arg instanceof Component comp) {
+                                try {
+                                    String serialized = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().serialize(comp);
+                                    for (String part : serialized.split("\r?\n")) {
+                                        outputLines.add(part);
+                                    }
+                                } catch (Throwable t) {
+                                    outputLines.add(comp.toString());
+                                }
+                            } else if (arg instanceof net.kyori.adventure.text.ComponentLike cl) {
+                                try {
+                                    String serialized = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().serialize(cl.asComponent());
+                                    for (String part : serialized.split("\r?\n")) {
+                                        outputLines.add(part);
+                                    }
+                                } catch (Throwable t) {
+                                    outputLines.add(cl.toString());
+                                }
+                            }
+                        }
+                    } else if (("sendRawMessage".equals(name) || "sendRichMessage".equals(name)) && args != null && args.length > 0) {
+                        for (Object arg : args) {
+                            if (arg instanceof String s) {
+                                for (String part : s.split("\r?\n")) {
+                                    outputLines.add(part);
+                                }
+                            }
+                        }
+                    }
+
+                    try {
+                        return method.invoke(originalConsole, args);
+                    } catch (java.lang.reflect.InvocationTargetException ite) {
+                        throw ite.getCause();
+                    }
+                };
+
+                org.bukkit.command.ConsoleCommandSender capturingSender = (org.bukkit.command.ConsoleCommandSender) java.lang.reflect.Proxy.newProxyInstance(
+                    org.bukkit.command.ConsoleCommandSender.class.getClassLoader(),
+                    new Class<?>[]{org.bukkit.command.ConsoleCommandSender.class},
+                    handler
+                );
+
+                java.io.PrintStream originalOut = System.out;
+                java.util.List<String> consoleFallback = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+                Thread mainThread = Thread.currentThread();
+
+                java.io.PrintStream interceptingOut = new java.io.PrintStream(new java.io.OutputStream() {
+                    private final java.io.ByteArrayOutputStream lineBuf = new java.io.ByteArrayOutputStream();
+
+                    @Override
+                    public synchronized void write(int b) {
+                        originalOut.write(b);
+                        if (Thread.currentThread() == mainThread) {
+                            if (b == '\n') {
+                                String line = lineBuf.toString(StandardCharsets.UTF_8).replace("\r", "");
+                                lineBuf.reset();
+                                if (!line.trim().isEmpty()) {
+                                    consoleFallback.add(line);
+                                }
+                            } else {
+                                lineBuf.write(b);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public synchronized void write(byte[] b, int off, int len) {
+                        originalOut.write(b, off, len);
+                        if (Thread.currentThread() == mainThread) {
+                            for (int i = off; i < off + len; i++) {
+                                if (b[i] == '\n') {
+                                    String line = lineBuf.toString(StandardCharsets.UTF_8).replace("\r", "");
+                                    lineBuf.reset();
+                                    if (!line.trim().isEmpty()) {
+                                        consoleFallback.add(line);
+                                    }
+                                } else {
+                                    lineBuf.write(b[i]);
+                                }
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void flush() {
+                        originalOut.flush();
+                    }
+                }, true, StandardCharsets.UTF_8);
+
+                System.setOut(interceptingOut);
+                try {
+                    Bukkit.dispatchCommand(capturingSender, cmd);
+                } finally {
+                    System.setOut(originalOut);
+                }
+
+                java.util.List<String> finalOutput = !outputLines.isEmpty() ? outputLines : consoleFallback;
+                StringBuilder outArray = new StringBuilder("[");
+                for (int i = 0; i < finalOutput.size(); i++) {
+                    if (i > 0) outArray.append(",");
+                    outArray.append("\"").append(escapeJson(finalOutput.get(i))).append("\"");
+                }
+                outArray.append("]");
+
+                cmdFuture.complete("{\"success\":true,\"dispatched\":\"" + escapeJson(cmd) + "\",\"output\":" + outArray + "}");
             } catch (Throwable t) {
                 Bukkit.getLogger().log(Level.WARNING, "Error executing web console command: " + cmd, t);
-                cmdFuture.complete("{\"success\":false,\"error\":\"" + (t.getMessage() != null ? t.getMessage().replace("\"", "\\\"") : "Error al ejecutar comando") + "\"}");
+                cmdFuture.complete("{\"success\":false,\"error\":\"" + (t.getMessage() != null ? escapeJson(t.getMessage()) : "Error al ejecutar comando") + "\"}");
             }
         });
 
         String resJson;
         try {
-            resJson = cmdFuture.get(3, TimeUnit.SECONDS);
+            resJson = cmdFuture.get(5, TimeUnit.SECONDS);
         } catch (Throwable t) {
             resJson = "{\"success\":false,\"message\":\"Tiempo de espera agotado al despachar comando\"}";
         }
@@ -814,7 +937,11 @@ public final class UniverseWebPanel {
 
     private static String escapeJson(String s) {
         if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
 
@@ -1412,7 +1539,7 @@ public final class UniverseWebPanel {
     .btn-op { background: var(--purple); color: #fff; }
 
     /* Terminal Console */
-    .console-box { background: #06070d; border: 1px solid var(--border); border-radius: 12px; height: 380px; overflow-y: auto; padding: 16px; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; color: #a6e22e; line-height: 1.5; margin-bottom: 12px; }
+    .console-box { background: #06070d; border: 1px solid var(--border); border-radius: 12px; height: 380px; overflow-y: auto; padding: 16px; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; color: #a6e22e; line-height: 1.5; margin-bottom: 12px; white-space: pre-wrap; word-break: break-word; }
     .console-row { display: flex; gap: 10px; }
     .console-row input { flex: 1; background: #0d1020; border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: #fff; font-size: 14px; font-family: monospace; outline: none; transition: 0.2s; }
     .console-row input:focus { border-color: var(--cyan); box-shadow: 0 0 12px rgba(0,240,255,0.25); }
@@ -1614,6 +1741,8 @@ public final class UniverseWebPanel {
           <div class="console-chips">
             <span class="cmd-chip" onclick="quickCommand('tps')">tps</span>
             <span class="cmd-chip" onclick="quickCommand('version')">version</span>
+            <span class="cmd-chip" onclick="quickCommand('pl')">pl</span>
+            <span class="cmd-chip" onclick="quickCommand('help')">help</span>
             <span class="cmd-chip" onclick="quickCommand('memory')">memory</span>
             <span class="cmd-chip" onclick="quickCommand('lag')">lag</span>
             <span class="cmd-chip" onclick="quickCommand('save-all')">save-all</span>
@@ -1826,6 +1955,96 @@ public final class UniverseWebPanel {
     function escapeHtml(str) {
       if (!str && str !== 0) return '';
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function formatMinecraftColors(rawText) {
+      if (!rawText && rawText !== 0) return '';
+      let text = String(rawText);
+
+      // Convert hex color codes §x§r§r§g§g§b§b to §#rrggbb
+      text = text.replace(/§x§([0-9a-fA-F])§([0-9a-fA-F])§([0-9a-fA-F])§([0-9a-fA-F])§([0-9a-fA-F])§([0-9a-fA-F])/g, (m, r1, r2, g1, g2, b1, b2) => {
+        return `§#${r1}${r2}${g1}${g2}${b1}${b2}`;
+      });
+
+      const colorMap = {
+        '0': '#4a4a4a',
+        '1': '#2563eb',
+        '2': '#16a34a',
+        '3': '#0891b2',
+        '4': '#dc2626',
+        '5': '#9333ea',
+        '6': '#d97706',
+        '7': '#9ca3af',
+        '8': '#6b7280',
+        '9': '#60a5fa',
+        'a': '#4ade80',
+        'b': '#38bdf8',
+        'c': '#f87171',
+        'd': '#f472b6',
+        'e': '#fde047',
+        'f': '#f8fafc'
+      };
+
+      let curColor = '#cbd5e1';
+      let curBold = false;
+      let curItalic = false;
+      let curUnderline = false;
+      let curStrike = false;
+
+      let out = '';
+      let i = 0;
+      while (i < text.length) {
+        if (text[i] === '§' && i + 1 < text.length) {
+          if (text[i + 1] === '#' && i + 7 < text.length) {
+            curColor = text.substring(i + 1, i + 8);
+            i += 8;
+            continue;
+          }
+          const code = text[i + 1].toLowerCase();
+          i += 2;
+          if (colorMap[code]) {
+            curColor = colorMap[code];
+            curBold = false;
+            curItalic = false;
+            curUnderline = false;
+            curStrike = false;
+          } else if (code === 'l') {
+            curBold = true;
+          } else if (code === 'o') {
+            curItalic = true;
+          } else if (code === 'n') {
+            curUnderline = true;
+          } else if (code === 'm') {
+            curStrike = true;
+          } else if (code === 'r') {
+            curColor = '#cbd5e1';
+            curBold = false;
+            curItalic = false;
+            curUnderline = false;
+            curStrike = false;
+          }
+          continue;
+        }
+
+        let seg = '';
+        while (i < text.length && text[i] !== '§') {
+          seg += text[i];
+          i++;
+        }
+
+        if (seg.length > 0) {
+          let styles = [`color:${curColor}`];
+          if (curBold) styles.push('font-weight:bold');
+          if (curItalic) styles.push('font-style:italic');
+          let dec = [];
+          if (curUnderline) dec.push('underline');
+          if (curStrike) dec.push('line-through');
+          if (dec.length > 0) styles.push(`text-decoration:${dec.join(' ')}`);
+
+          out += `<span style="${styles.join(';')}">${escapeHtml(seg)}</span>`;
+        }
+      }
+      return out;
     }
 
     function showTab(id) {
@@ -2060,7 +2279,11 @@ public final class UniverseWebPanel {
       log.scrollTop = log.scrollHeight;
 
       const res = await api('/api/command', 'POST', { command: cmd });
-      if (res && res.success) {
+      if (res && res.output && Array.isArray(res.output) && res.output.length > 0) {
+        for (const line of res.output) {
+          log.innerHTML += `<br>` + formatMinecraftColors(line);
+        }
+      } else if (res && res.success) {
         log.innerHTML += `<br><span style="color:var(--muted);">[Consola] Ejecutado: ${escapeHtml(res.dispatched)}</span>`;
       } else {
         log.innerHTML += `<br><span style="color:var(--red);">[Error] ${res ? escapeHtml(res.error || res.message) : 'Fallo de ejecución'}</span>`;
