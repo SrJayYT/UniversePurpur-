@@ -41,10 +41,15 @@ public class UniverseTpsCommand extends Command {
         double currentTps = governor.getCurrentTps();
         double[] tpsArr = Bukkit.getTPS();
 
-        NamedTextColor c1m = formatTpsColor(tpsArr.length > 0 ? tpsArr[0] : currentTps);
-        NamedTextColor c5m = formatTpsColor(tpsArr.length > 1 ? tpsArr[1] : currentTps);
-        NamedTextColor c15m = formatTpsColor(tpsArr.length > 2 ? tpsArr[2] : currentTps);
-
+        double t1m = governor.getTps1m();
+        double t5m = governor.getTps5m();
+        double t15m = governor.getTps15m();
+        double t30m = governor.getTps30m();
+        double t1h = governor.getTps1h();
+        double t3h = governor.getTps3h();
+        double t6h = governor.getTps6h();
+        double t12h = governor.getTps12h();
+        double t1d = governor.getTps1d();
         NamedTextColor msptColor = (currentMspt <= 35.0D) ? NamedTextColor.GREEN : (currentMspt <= 45.0D) ? NamedTextColor.YELLOW : NamedTextColor.RED;
 
         Runtime rt = Runtime.getRuntime();
@@ -63,13 +68,27 @@ public class UniverseTpsCommand extends Command {
                 .append(Component.text("Telemetría de Rendimiento en Tiempo Real", NamedTextColor.AQUA, TextDecoration.BOLD)));
         sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
 
-        Component tpsLine = Component.text(" • TPS (1m, 5m, 15m): ", NamedTextColor.GRAY)
-                .append(Component.text(String.format("%.2f", tpsArr.length > 0 ? tpsArr[0] : currentTps), c1m))
+        Component tpsShort = Component.text(" • TPS (1m, 5m, 15m, 30m): ", NamedTextColor.GRAY)
+                .append(Component.text(String.format("%.2f", t1m), formatTpsColor(t1m)))
                 .append(Component.text(", ", NamedTextColor.DARK_GRAY))
-                .append(Component.text(String.format("%.2f", tpsArr.length > 1 ? tpsArr[1] : currentTps), c5m))
+                .append(Component.text(String.format("%.2f", t5m), formatTpsColor(t5m)))
                 .append(Component.text(", ", NamedTextColor.DARK_GRAY))
-                .append(Component.text(String.format("%.2f", tpsArr.length > 2 ? tpsArr[2] : currentTps), c15m));
-        sender.sendMessage(tpsLine);
+                .append(Component.text(String.format("%.2f", t15m), formatTpsColor(t15m)))
+                .append(Component.text(", ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(String.format("%.2f", t30m), formatTpsColor(t30m)));
+        sender.sendMessage(tpsShort);
+
+        Component tpsLong = Component.text(" • TPS (1h, 3h, 6h, 12h, 1d): ", NamedTextColor.GRAY)
+                .append(Component.text(String.format("%.2f", t1h), formatTpsColor(t1h)))
+                .append(Component.text(", ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(String.format("%.2f", t3h), formatTpsColor(t3h)))
+                .append(Component.text(", ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(String.format("%.2f", t6h), formatTpsColor(t6h)))
+                .append(Component.text(", ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(String.format("%.2f", t12h), formatTpsColor(t12h)))
+                .append(Component.text(", ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(String.format("%.2f", t1d), formatTpsColor(t1d)));
+        sender.sendMessage(tpsLong);
 
         Component msptLine = Component.text(" • Tick Duration (MSPT): ", NamedTextColor.GRAY)
                 .append(Component.text(String.format("%.2f ms", currentMspt), msptColor))

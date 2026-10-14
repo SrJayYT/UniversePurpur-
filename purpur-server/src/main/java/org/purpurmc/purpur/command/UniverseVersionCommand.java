@@ -120,6 +120,10 @@ public class UniverseVersionCommand extends Command {
                 .append(Component.text(profile, NamedTextColor.GOLD))
                 .append(Component.text(" (Gobernador MSPT: " + throttle + ")", NamedTextColor.GRAY)));
 
+        sender.sendMessage(Component.text(" • Versiones Nativas: ", NamedTextColor.GRAY)
+                .append(Component.text("1.21.0, 1.21.1, 1.21.2, 1.21.3, 1.21.4, 1.21.5, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10, 1.21.11", NamedTextColor.AQUA, TextDecoration.BOLD))
+                .append(Component.text(" (Full Cross-Version Native)", NamedTextColor.DARK_GRAY)));
+
         sender.sendMessage(Component.text(" • MultiVersión Engine: ", NamedTextColor.GRAY)
                 .append(Component.text("1.21.x -> 1.26.x (Full Range)", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
                 .append(Component.text(org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.isMultiVersionActive()

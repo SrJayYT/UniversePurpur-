@@ -881,7 +881,7 @@ public final class UniverseWebPanel {
       <p id="heroDesc">La experiencia de Minecraft más fluida y optimizada del mundo. Juega sin lag con tasa de 20.0 TPS continua y compatibilidad crossplay.</p>
 
       <div class="ip-box" onclick="copyIp()">
-        <span id="ipText">play.universenetwork.net</span>
+        <span id="ipText">panel.scon.host</span>
         <small id="copyNotice">📋 Haz clic para copiar</small>
       </div>
 

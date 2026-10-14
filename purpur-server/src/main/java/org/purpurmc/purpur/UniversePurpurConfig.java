@@ -123,7 +123,7 @@ public final class UniversePurpurConfig {
     public static String webServerDescription = "The Ultimate +15k Minecraft Server Network";
     public static String webServerLogoUrl = "/assets/universepurpur_banner.png";
     public static String webServerFaviconUrl = "https://purpurmc.org/favicon.ico";
-    public static String webServerIpAddress = "play.universenetwork.net";
+    public static String webServerIpAddress = "panel.scon.host";
     public static String webDiscordInviteUrl = "https://discord.gg/universepurpur";
 
     // --- MultiVersion Support (1.21.x -> 1.26.x Full Protocol Range) ---
@@ -159,6 +159,7 @@ public final class UniversePurpurConfig {
         try {
             org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.init(serverRootDir);
             org.purpurmc.purpur.multiversion.UniverseGeyserManager.init(serverRootDir);
+            org.purpurmc.purpur.multiversion.UniversePlugManManager.init(serverRootDir);
             org.purpurmc.purpur.task.UniverseGovernorTask.instance().start();
             org.purpurmc.purpur.task.UniverseMemoryGovernor.instance().start();
             org.purpurmc.purpur.web.UniverseWebPanel.instance().start();

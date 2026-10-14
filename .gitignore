@@ -63,6 +63,7 @@ test-plugin.settings.gradle.kts
 
 build_universe/
 test_run/
+upload_release.ps1
 build_adventure/
 adv420.txt
 adv426.txt
