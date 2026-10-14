@@ -141,6 +141,13 @@ global:
     bind-address: "0.0.0.0"            # Dirección de escucha
     auth-token: "admin15k"             # Token de acceso para el panel
     allow-remote-commands: true        # Permite ejecutar comandos de consola desde la web
+    branding:
+      server-ip: "panel.scon.host"
+      title: "UniversePurpur Network"
+      description: "The Ultimate +15k Minecraft Server Network"
+      logo-url: "/assets/universepurpur_banner.png"
+      favicon-url: "https://purpurmc.org/favicon.ico"
+      discord-invite-url: "https://discord.gg/universepurpur"
 
   # ---------------------------------------------------------------------------
   # Soporte de Puertos Geyser Bedrock (3er Puerto)

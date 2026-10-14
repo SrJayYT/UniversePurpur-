@@ -42,6 +42,7 @@ public final class UniverseMemoryGovernor implements Runnable {
     private final AtomicLong lastTrimTimestamp = new AtomicLong(0L);
 
     private final AtomicInteger zeroPlayerSeconds = new AtomicInteger(0);
+    private final long bootTimestamp = System.currentTimeMillis();
     private volatile boolean isHibernating = false;
 
     private UniverseMemoryGovernor() {}
@@ -92,15 +93,16 @@ public final class UniverseMemoryGovernor implements Runnable {
 
             int online = Bukkit.getOnlinePlayers().size();
 
-            // Zero-Player Deep Hibernation Engine
-            if (online == 0 && UniversePurpurConfig.idleHibernationEnabled) {
+            // Zero-Player Deep Hibernation Engine (with startup grace period)
+            long uptime = System.currentTimeMillis() - bootTimestamp;
+            if (online == 0 && UniversePurpurConfig.idleHibernationEnabled && uptime >= 45000L) {
                 int secs = zeroPlayerSeconds.addAndGet(5);
                 if (secs >= UniversePurpurConfig.idleHibernationTimeoutSeconds && !isHibernating) {
                     isHibernating = true;
                     Bukkit.getLogger().info("[UniverseTitan] 0 jugadores detectados -> Activando Hibernación Profunda (descargando chunks y liberando RAM al SO).");
                     triggerAsyncSafeTrim();
-                } else if (secs >= 60 && (secs % 30 == 0)) {
-                    // Mantenimiento periódico de reposo cada 30 segundos
+                } else if (secs >= 120 && (secs % 120 == 0)) {
+                    // Mantenimiento periódico de reposo cada 2 minutos
                     triggerAsyncSafeTrim();
                 }
             } else {
@@ -143,7 +145,7 @@ public final class UniverseMemoryGovernor implements Runnable {
                         future.complete(0);
                     }
                 });
-                return future.get(3, java.util.concurrent.TimeUnit.SECONDS);
+                return future.get(2, java.util.concurrent.TimeUnit.SECONDS);
             } catch (Throwable t) {
                 return 0;
             }
@@ -167,10 +169,9 @@ public final class UniverseMemoryGovernor implements Runnable {
                 Chunk[] loaded = world.getLoadedChunks();
                 for (Chunk chunk : loaded) {
                     if (online == 0) {
-                        // En reposo profundo, descargamos todos los chunks no ocupados por entidades criticas
-                        if (world.unloadChunk(chunk)) {
-                            freedChunks++;
-                        }
+                        // En reposo profundo, encolamos descarga asíncrona sin bloquear el tick loop
+                        world.unloadChunkRequest(chunk.getX(), chunk.getZ());
+                        freedChunks++;
                     } else if (UniversePurpurConfig.aggressiveMemorySaver && !chunk.isEntitiesLoaded()) {
                         boolean hasNearbyPlayer = false;
                         int cx = (chunk.getX() << 4) + 8;
@@ -187,9 +188,8 @@ public final class UniverseMemoryGovernor implements Runnable {
                             }
                         }
                         if (!hasNearbyPlayer) {
-                            if (world.unloadChunk(chunk)) {
-                                freedChunks++;
-                            }
+                            world.unloadChunkRequest(chunk.getX(), chunk.getZ());
+                            freedChunks++;
                         }
                     }
                 }
@@ -209,9 +209,13 @@ public final class UniverseMemoryGovernor implements Runnable {
             }
 
             // ONLY invite System.gc() when 0 players are online (Deep Hibernation)
-            // to avoid Stop-The-World GC stutter during active gameplay.
+            // and execute it ASYNCHRONOUSLY on a background worker thread so the main server tick loop NEVER halts.
             if (online == 0) {
-                System.gc();
+                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        System.gc();
+                    } catch (Throwable ignore) {}
+                });
             }
         } catch (Throwable ignore) {
         }

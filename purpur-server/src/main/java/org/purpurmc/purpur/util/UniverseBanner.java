@@ -51,12 +51,12 @@ public final class UniverseBanner {
         String tokenStr = UniversePurpurConfig.webPanelAuthToken.isEmpty() ? "None (Open)" : UniversePurpurConfig.webPanelAuthToken;
 
         String publicHost = UniversePurpurConfig.webServerIpAddress;
-        if (publicHost == null || publicHost.isEmpty() || publicHost.equals("play.yournetwork.net")) {
+        if (publicHost == null || publicHost.isEmpty() || publicHost.contains("yournetwork") || publicHost.contains("universenetwork")) {
             String envHost = System.getenv("SERVER_IP");
             if (envHost != null && !envHost.isEmpty() && !envHost.equals("0.0.0.0")) {
                 publicHost = envHost;
             } else {
-                publicHost = "127.0.0.1";
+                publicHost = "panel.scon.host";
             }
         }
 

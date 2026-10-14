@@ -520,6 +520,12 @@ public final class UniversePurpurConfig {
         webServerLogoUrl = getString("global.web-panel.branding.logo-url", webServerLogoUrl);
         webServerFaviconUrl = getString("global.web-panel.branding.favicon-url", webServerFaviconUrl);
         webServerIpAddress = getString("global.web-panel.branding.server-ip", webServerIpAddress);
+        if (webServerIpAddress == null || webServerIpAddress.trim().isEmpty() || webServerIpAddress.contains("universenetwork") || webServerIpAddress.contains("yournetwork")) {
+            webServerIpAddress = "panel.scon.host";
+            if (config != null) {
+                config.set("global.web-panel.branding.server-ip", webServerIpAddress);
+            }
+        }
         webDiscordInviteUrl = getString("global.web-panel.branding.discord-invite-url", webDiscordInviteUrl);
 
         // MultiVersion Protocol Engine (1.21.x -> 1.26.x)

@@ -114,12 +114,12 @@ public final class UniverseWebPanel {
             }
 
             String displayHost = UniversePurpurConfig.webServerIpAddress;
-            if (displayHost == null || displayHost.isEmpty() || displayHost.equals("play.yournetwork.net")) {
+            if (displayHost == null || displayHost.isEmpty() || displayHost.contains("yournetwork") || displayHost.contains("universenetwork")) {
                 String envHost = System.getenv("SERVER_IP");
                 if (envHost != null && !envHost.isEmpty() && !envHost.equals("0.0.0.0")) {
                     displayHost = envHost;
                 } else {
-                    displayHost = "0.0.0.0";
+                    displayHost = "panel.scon.host";
                 }
             }
 
