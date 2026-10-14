@@ -110,12 +110,12 @@ public final class UniverseMemoryGovernor implements Runnable {
                 }
                 zeroPlayerSeconds.set(0);
 
-                // Auto-heal / Auto-trim if heap exceeds configured threshold (default 65%)
-                double threshold = UniversePurpurConfig.memoryTrimThresholdPercent;
+                // Auto-heal / Auto-trim if heap exceeds configured threshold (default 82%+)
+                double threshold = Math.max(82.0D, UniversePurpurConfig.memoryTrimThresholdPercent);
                 if (UniversePurpurConfig.memoryAutoTrimEnabled && heapUsagePercent >= threshold) {
                     long now = System.currentTimeMillis();
                     long last = lastTrimTimestamp.get();
-                    if (now - last >= 30000L && lastTrimTimestamp.compareAndSet(last, now)) {
+                    if (now - last >= 60000L && lastTrimTimestamp.compareAndSet(last, now)) {
                         triggerAsyncSafeTrim();
                     }
                 }
@@ -175,11 +175,13 @@ public final class UniverseMemoryGovernor implements Runnable {
                         boolean hasNearbyPlayer = false;
                         int cx = (chunk.getX() << 4) + 8;
                         int cz = (chunk.getZ() << 4) + 8;
+                        double safeRadiusBlocks = (world.getViewDistance() + 2) * 16.0D;
+                        double safeRadiusSq = safeRadiusBlocks * safeRadiusBlocks;
                         for (org.bukkit.entity.Player p : world.getPlayers()) {
                             org.bukkit.Location pLoc = p.getLocation();
                             double dx = pLoc.getX() - cx;
                             double dz = pLoc.getZ() - cz;
-                            if ((dx * dx + dz * dz) <= (48.0D * 48.0D)) {
+                            if ((dx * dx + dz * dz) <= safeRadiusSq) {
                                 hasNearbyPlayer = true;
                                 break;
                             }
@@ -206,8 +208,11 @@ public final class UniverseMemoryGovernor implements Runnable {
             } catch (Throwable ignore) {
             }
 
-            // Explicit concurrent GC invitation to JVM runtime to release pages to OS
-            System.gc();
+            // ONLY invite System.gc() when 0 players are online (Deep Hibernation)
+            // to avoid Stop-The-World GC stutter during active gameplay.
+            if (online == 0) {
+                System.gc();
+            }
         } catch (Throwable ignore) {
         }
 

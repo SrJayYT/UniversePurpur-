@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -70,8 +71,8 @@ public final class UniversePurpurConfig {
 
     // Adaptive Packet Rate Limiting (Anti-DoS / Packet Flooding)
     public static boolean packetRateLimitEnabled = true;
-    public static int maxPacketsPerSecond = 1200;
-    public static int packetBurstLimit = 250;
+    public static int maxPacketsPerSecond = 2500;
+    public static int packetBurstLimit = 500;
     public static boolean adaptiveRateLimiting = true;
 
     // Anti-Payload Spam
@@ -154,8 +155,10 @@ public final class UniversePurpurConfig {
         config.options().copyDefaults(true);
 
         readDefaultsAndValues();
+        setProfile(profile);
         save();
         optimizeServerProperties(serverRootDir);
+        registerWorldListener();
         try {
             org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.init(serverRootDir);
             org.purpurmc.purpur.multiversion.UniverseGeyserManager.init(serverRootDir);
@@ -171,6 +174,45 @@ public final class UniversePurpurConfig {
             }
         } catch (Throwable ignore) {
         }
+    }
+
+    public static void registerWorldListener() {
+        try {
+            org.bukkit.plugin.PluginManager pm = Bukkit.getPluginManager();
+            pm.registerEvents(new org.bukkit.event.Listener() {
+                @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.LOWEST)
+                public void onWorldInit(org.bukkit.event.world.WorldInitEvent event) {
+                    applyWorldOptimizations(event.getWorld());
+                }
+
+                @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.LOWEST)
+                public void onWorldLoad(org.bukkit.event.world.WorldLoadEvent event) {
+                    applyWorldOptimizations(event.getWorld());
+                }
+            }, new org.purpurmc.purpur.util.MinecraftInternalPlugin());
+
+            for (World w : Bukkit.getWorlds()) {
+                applyWorldOptimizations(w);
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    public static void applyWorldOptimizations(World world) {
+        if (world == null) return;
+        try {
+            world.setKeepSpawnInMemory(false);
+            int vDist = getWorldViewDistance(world.getName());
+            int sDist = getWorldSimulationDistance(world.getName());
+            world.setViewDistance(vDist);
+            world.setSimulationDistance(sDist);
+
+            try {
+                world.setGameRule(org.bukkit.GameRule.SPAWN_RADIUS, 1);
+                world.setGameRule(org.bukkit.GameRule.SPAWN_CHUNK_RADIUS, 0);
+                world.setGameRule(org.bukkit.GameRule.RANDOM_TICK_SPEED, getWorldRandomTickSpeed(world.getName()));
+            } catch (Throwable ignore) {}
+        } catch (Throwable ignore) {}
     }
 
     public static void optimizeServerProperties(File serverRootDir) {
@@ -194,11 +236,31 @@ public final class UniversePurpurConfig {
                     props.setProperty("enforce-secure-profile", "false");
                     modified = true;
                 }
+
+                if ("ultra-low-ram-cpu".equalsIgnoreCase(profile)) {
+                    if (!"4".equals(props.getProperty("view-distance"))) {
+                        props.setProperty("view-distance", "4");
+                        modified = true;
+                    }
+                    if (!"2".equals(props.getProperty("simulation-distance"))) {
+                        props.setProperty("simulation-distance", "2");
+                        modified = true;
+                    }
+                    if (!"256".equals(props.getProperty("network-compression-threshold"))) {
+                        props.setProperty("network-compression-threshold", "256");
+                        modified = true;
+                    }
+                    if (!"50".equals(props.getProperty("entity-broadcast-range-percentage"))) {
+                        props.setProperty("entity-broadcast-range-percentage", "50");
+                        modified = true;
+                    }
+                }
+
                 if (modified) {
                     try (java.io.FileOutputStream out = new java.io.FileOutputStream(propFile)) {
                         props.store(out, "UniversePurpur Ultra-Low RAM & CPU Configuration");
                     }
-                    Bukkit.getLogger().info("[UniverseTitan] server.properties optimizado: spawn-chunk-radius=0, enforce-secure-profile=false.");
+                    Bukkit.getLogger().info("[UniverseTitan] server.properties optimizado: view-distance=4, simulation-distance=2, spawn-chunk-radius=0, sync-chunk-writes=false.");
                 }
             }
         } catch (Throwable ignore) {
@@ -290,20 +352,37 @@ public final class UniversePurpurConfig {
             hopperThrottleEmptyTicks = 16;
             dabActivationDistance = 8;
             dabMaxTickFreq = 40;
-            memoryTrimThresholdPercent = 70.0D;
+            memoryTrimThresholdPercent = 80.0D;
             maxAutoSaveChunksPerTick = 2;
             itemMergeRadius = 5.0D;
-            aggressiveMemorySaver = true;
+            aggressiveMemorySaver = false;
+            disableAmbientMobs = true;
         } else if (newProfile != null && newProfile.equalsIgnoreCase("15k-hyper-hub")) {
             simulationDistanceCap = 2;
             viewDistanceCap = 6;
             maxVisiblePlayersPerClient = 24;
             maxCollisionsPerEntity = 0;
             playerCollisionsEnabled = false;
+            memoryTrimThresholdPercent = 80.0D;
+            aggressiveMemorySaver = false;
+        } else if (newProfile != null && newProfile.equalsIgnoreCase("15k-scale-smp")) {
+            simulationDistanceCap = 4;
+            viewDistanceCap = 6;
+            maxVisiblePlayersPerClient = 32;
+            maxCollisionsPerEntity = 1;
+            playerCollisionsEnabled = false;
+            memoryTrimThresholdPercent = 80.0D;
+            aggressiveMemorySaver = false;
         }
         if (config != null) {
             config.set("profile", newProfile);
             save();
+        }
+        try {
+            for (World w : Bukkit.getWorlds()) {
+                applyWorldOptimizations(w);
+            }
+        } catch (Throwable ignore) {
         }
     }
 

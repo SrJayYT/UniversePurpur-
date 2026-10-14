@@ -77,7 +77,7 @@
             "name": "JVM Flags (Ultra-Low RAM & CPU)",
             "description": "Banderas de la JVM optimizadas para mínimo consumo de RAM y CPU. Sin pre-reserva agresiva (sin AlwaysPreTouch), con devolución inmediata de memoria libre al SO (-XX:ZUncommitDelay=10), deduplicación de texto y buffers de red ligeros.",
             "env_variable": "JVM_FLAGS",
-            "default_value": "-XX:+UseZGC -XX:+ZGenerational -XX:ZUncommitDelay=10 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -Dio.netty.allocator.type=unpooled",
+            "default_value": "-XX:+UseZGC -XX:+ZGenerational -XX:ZUncommitDelay=10 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -Dio.netty.allocator.type=pooled",
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string",
