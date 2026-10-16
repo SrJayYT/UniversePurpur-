@@ -311,26 +311,31 @@ public class UniversePurpurCommand extends Command {
         sender.sendMessage(Component.text("  UNIVERSE", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD)
                 .append(Component.text("PURPUR ", NamedTextColor.DARK_PURPLE, TextDecoration.BOLD))
                 .append(Component.text("» ", NamedTextColor.GRAY))
-                .append(Component.text("Titan Engine (+15,000 Players)", NamedTextColor.AQUA, TextDecoration.BOLD)));
+                .append(Component.text(UniversePurpurConfig.getEngineName(), NamedTextColor.AQUA, TextDecoration.BOLD)));
         sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
 
         sender.sendMessage(Component.text(" • Software: ", NamedTextColor.GRAY)
                 .append(Component.text("UniversePurpur Enterprise Edition", NamedTextColor.WHITE, TextDecoration.BOLD)));
 
         sender.sendMessage(Component.text(" • Versión del Núcleo: ", NamedTextColor.GRAY)
-                .append(Component.text("1.0.0-RELEASE", NamedTextColor.GREEN))
+                .append(Component.text("1.0.2-TITAN-RELEASE", NamedTextColor.GREEN))
                 .append(Component.text(" (MC: " + Bukkit.getMinecraftVersion() + " | Build: " + Bukkit.getVersion() + ")", NamedTextColor.DARK_GRAY)));
 
         sender.sendMessage(Component.text(" • Autor & Desarrollador: ", NamedTextColor.GRAY)
                 .append(Component.text("DevPapo ", NamedTextColor.GOLD, TextDecoration.BOLD))
                 .append(Component.text("(admin@scon.host)", NamedTextColor.YELLOW)));
 
+        sender.sendMessage(Component.text(" • Motor en Uso (Engine): ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.getEngineName(), NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
+                .append(Component.text(" [" + UniversePurpurConfig.engine + "]", NamedTextColor.DARK_AQUA)));
+
+        sender.sendMessage(Component.text(" • Tuner de Rendimiento: ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.getTunerName(), NamedTextColor.GOLD, TextDecoration.BOLD))
+                .append(Component.text(" [" + UniversePurpurConfig.profile + "]", NamedTextColor.YELLOW)));
+
         sender.sendMessage(Component.text(" • MultiVersión Engine: ", NamedTextColor.GRAY)
                 .append(Component.text("1.21.x -> 1.26.x (Full Range)", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
                 .append(Component.text(" [ACTIVO]", NamedTextColor.GREEN)));
-
-        sender.sendMessage(Component.text(" • Perfil de Rendimiento: ", NamedTextColor.GRAY)
-                .append(Component.text(UniversePurpurConfig.profile, NamedTextColor.GOLD)));
 
         sender.sendMessage(Component.text(" • Repositorio GitHub: ", NamedTextColor.GRAY)
                 .append(Component.text("https://github.com/SrJayYT/UniversePurpur-", NamedTextColor.BLUE)

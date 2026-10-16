@@ -24,7 +24,7 @@ public final class PaperBootstrap {
         final String osArch = System.getProperty("os.arch");
 
         LOGGER.info(String.format("Running Java %s (%s) on %s (%s)", javaVer, vmName, osName, osArch));
-        LOGGER.info(String.format("Loading UniversePurpur Titan Engine (Build: 1.0.1-TITAN-RELEASE) for Minecraft %s",
+        LOGGER.info(String.format("Loading UniversePurpur Titan Engine (Build: 1.0.2-TITAN-RELEASE) for Minecraft %s",
             net.minecraft.SharedConstants.getCurrentVersion().getName()
         ));
 

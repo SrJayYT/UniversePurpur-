@@ -45,7 +45,7 @@ public class PurpurVersionFetcher implements VersionFetcher {
                 .append(text("UniversePurpur Enterprise Edition", NamedTextColor.WHITE, TextDecoration.BOLD))
                 .append(Component.newline())
                 .append(text(" • Versión del Núcleo: ", NamedTextColor.GRAY))
-                .append(text("1.0.1-TITAN-RELEASE", NamedTextColor.GREEN))
+                .append(text("1.0.2-TITAN-RELEASE", NamedTextColor.GREEN))
                 .append(Component.newline())
                 .append(text(" • Autor & Desarrollador: ", NamedTextColor.GRAY))
                 .append(text("DevPapo ", NamedTextColor.GOLD, TextDecoration.BOLD))
