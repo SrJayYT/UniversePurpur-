@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.UUID;
+import java.lang.management.ManagementFactory;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +29,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Ambient;
 import org.bukkit.entity.Item;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
@@ -54,6 +56,13 @@ public final class UniverseWebPanel {
     private HttpServer server;
     private final java.util.concurrent.atomic.AtomicInteger cachedLoadedChunks = new java.util.concurrent.atomic.AtomicInteger(0);
     private org.bukkit.event.Listener chunkListener;
+    private BukkitTask metricsTask;
+    private volatile String cachedWorldsJson = "[]";
+    private volatile int cachedTotalEntities = 0;
+    private volatile int cachedLivingEntities = 0;
+    private volatile int cachedItemEntities = 0;
+    private volatile double cachedProcessCpu = 0.0;
+    private volatile double cachedSystemCpu = 0.0;
     private boolean running = false;
 
     public static class DiscordSession {
@@ -155,6 +164,49 @@ public final class UniverseWebPanel {
                 Bukkit.getPluginManager().registerEvents(chunkListener, PLUGIN);
             }
 
+            if (metricsTask == null || metricsTask.isCancelled()) {
+                metricsTask = Bukkit.getScheduler().runTaskTimer(PLUGIN, () -> {
+                    try {
+                        int totalEnt = 0;
+                        int livingEnt = 0;
+                        int itemEnt = 0;
+                        StringBuilder sb = new StringBuilder("[");
+                        boolean firstW = true;
+                        for (World w : Bukkit.getWorlds()) {
+                            int wChunks = w.getLoadedChunks().length;
+                            int wEnt = 0;
+                            int wLiving = 0;
+                            int wItems = 0;
+                            for (org.bukkit.entity.Entity e : w.getEntities()) {
+                                wEnt++;
+                                if (e instanceof LivingEntity) wLiving++;
+                                if (e instanceof Item) wItems++;
+                            }
+                            totalEnt += wEnt;
+                            livingEnt += wLiving;
+                            itemEnt += wItems;
+
+                            if (!firstW) sb.append(",");
+                            firstW = false;
+                            sb.append(String.format(Locale.ROOT,
+                                    "{\"name\":\"%s\",\"environment\":\"%s\",\"chunks\":%d,\"entities\":%d,\"living\":%d,\"items\":%d,\"players\":%d,\"viewDist\":%d,\"simDist\":%d}",
+                                    escapeJson(w.getName()), escapeJson(w.getEnvironment().name()),
+                                    wChunks, wEnt, wLiving, wItems, w.getPlayers().size(),
+                                    w.getViewDistance(), w.getSimulationDistance()
+                            ));
+                        }
+                        sb.append("]");
+                        cachedWorldsJson = sb.toString();
+                        cachedTotalEntities = totalEnt;
+                        cachedLivingEntities = livingEnt;
+                        cachedItemEntities = itemEnt;
+                        cachedProcessCpu = getProcessCpuUsage();
+                        cachedSystemCpu = getSystemCpuUsage();
+                    } catch (Throwable ignore) {
+                    }
+                }, 20L, 20L);
+            }
+
             String displayHost = UniversePurpurConfig.webServerIpAddress;
             if (displayHost == null || displayHost.isEmpty() || displayHost.contains("yournetwork") || displayHost.contains("universenetwork")) {
                 String envHost = System.getenv("SERVER_IP");
@@ -190,6 +242,13 @@ public final class UniverseWebPanel {
             } catch (Throwable ignore) {
             }
             chunkListener = null;
+        }
+        if (metricsTask != null) {
+            try {
+                metricsTask.cancel();
+            } catch (Throwable ignore) {
+            }
+            metricsTask = null;
         }
         running = false;
     }
@@ -670,6 +729,12 @@ public final class UniverseWebPanel {
             return;
         }
 
+        // Granular Live Tuning (Requires ADMIN or SUPER_ADMIN)
+        if (path.equals("/api/tuning/granular") && "POST".equalsIgnoreCase(method)) {
+            handleGranularTuningApi(exchange);
+            return;
+        }
+
         // Branding Customization (Requires SUPER_ADMIN)
         if (path.equals("/api/settings/branding") && "POST".equalsIgnoreCase(method)) {
             if (session.role != UniverseUserManager.Role.SUPER_ADMIN) {
@@ -831,6 +896,75 @@ public final class UniverseWebPanel {
         sendJsonResponse(exchange, 404, "{\"error\":\"Endpoint no encontrado\"}");
     }
 
+    private static double getProcessCpuUsage() {
+        try {
+            java.lang.management.OperatingSystemMXBean os = ManagementFactory.getOperatingSystemMXBean();
+            if (os instanceof com.sun.management.OperatingSystemMXBean sunOs) {
+                double load = sunOs.getProcessCpuLoad();
+                return (load >= 0.0) ? Math.min(100.0, load * 100.0) : 0.0;
+            }
+        } catch (Throwable ignore) {}
+        return 0.0;
+    }
+
+    private static double getSystemCpuUsage() {
+        try {
+            java.lang.management.OperatingSystemMXBean os = ManagementFactory.getOperatingSystemMXBean();
+            if (os instanceof com.sun.management.OperatingSystemMXBean sunOs) {
+                double load = sunOs.getCpuLoad();
+                return (load >= 0.0) ? Math.min(100.0, load * 100.0) : 0.0;
+            }
+        } catch (Throwable ignore) {}
+        return 0.0;
+    }
+
+    private static int getAvailableProcessors() {
+        return Runtime.getRuntime().availableProcessors();
+    }
+
+    private static long getUptimeSeconds() {
+        try {
+            return ManagementFactory.getRuntimeMXBean().getUptime() / 1000L;
+        } catch (Throwable ignore) {}
+        return 0L;
+    }
+
+    private static String getFormattedUptime(long totalSecs) {
+        long days = totalSecs / 86400L;
+        long hours = (totalSecs % 86400L) / 3600L;
+        long minutes = (totalSecs % 3600L) / 60L;
+        long seconds = totalSecs % 60L;
+        if (days > 0) return String.format(Locale.ROOT, "%dd %dh %dm", days, hours, minutes);
+        if (hours > 0) return String.format(Locale.ROOT, "%dh %dm %ds", hours, minutes, seconds);
+        return String.format(Locale.ROOT, "%dm %ds", minutes, seconds);
+    }
+
+    private static int getThreadCount() {
+        try {
+            return ManagementFactory.getThreadMXBean().getThreadCount();
+        } catch (Throwable ignore) {}
+        return 0;
+    }
+
+    private static long getNonHeapMemoryMb() {
+        try {
+            return ManagementFactory.getMemoryMXBean().getNonHeapMemoryUsage().getUsed() / (1024L * 1024L);
+        } catch (Throwable ignore) {}
+        return 0L;
+    }
+
+    private static String getGcNames() {
+        try {
+            StringBuilder sb = new StringBuilder();
+            for (java.lang.management.GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
+                if (!sb.isEmpty()) sb.append(", ");
+                sb.append(gc.getName());
+            }
+            return sb.toString();
+        } catch (Throwable ignore) {}
+        return "ZGC / Standard";
+    }
+
     private void handleStatusApi(HttpExchange exchange) throws IOException {
         UniverseGovernorTask gov = UniverseGovernorTask.instance();
         UniverseMemoryGovernor mem = UniverseMemoryGovernor.instance();
@@ -842,20 +976,33 @@ public final class UniverseWebPanel {
         long maxMem = rt.maxMemory();
         long usedMemMb = (totalMem - freeMem) / (1024L * 1024L);
         long maxMemMb = maxMem / (1024L * 1024L);
+        long nonHeapMb = getNonHeapMemoryMb();
 
         int onlinePlayers = Bukkit.getOnlinePlayers().size();
         int maxPlayers = Bukkit.getMaxPlayers();
         int chunks = getCachedLoadedChunks();
 
+        long uptime = getUptimeSeconds();
+        String uptimeFmt = getFormattedUptime(uptime);
+        double procCpu = cachedProcessCpu > 0 ? cachedProcessCpu : getProcessCpuUsage();
+        double sysCpu = cachedSystemCpu > 0 ? cachedSystemCpu : getSystemCpuUsage();
+        int threads = getThreadCount();
+        int cores = getAvailableProcessors();
+        String gcName = getGcNames();
+
+        int totalPing = 0;
         StringBuilder pList = new StringBuilder("[");
         int pCount = 0;
         for (Player p : Bukkit.getOnlinePlayers()) {
+            totalPing += p.getPing();
             if (pCount > 0) pList.append(",");
-            if (pCount >= 32) break;
-            pList.append(String.format(Locale.ROOT, "{\"name\":\"%s\",\"ping\":%d}", escapeJson(p.getName()), p.getPing()));
+            if (pCount < 32) {
+                pList.append(String.format(Locale.ROOT, "{\"name\":\"%s\",\"ping\":%d}", escapeJson(p.getName()), p.getPing()));
+            }
             pCount++;
         }
         pList.append("]");
+        int avgPing = (onlinePlayers > 0) ? (totalPing / onlinePlayers) : 0;
 
         String json = String.format(Locale.ROOT, """
                 {
@@ -869,6 +1016,22 @@ public final class UniverseWebPanel {
                   "discordInvite": "%s",
                   "tps": %.2f,
                   "mspt": %.2f,
+                  "tps1m": %.2f,
+                  "tps5m": %.2f,
+                  "tps15m": %.2f,
+                  "cpuProcess": %.1f,
+                  "cpuSystem": %.1f,
+                  "availableProcessors": %d,
+                  "uptimeSeconds": %d,
+                  "uptimeFormatted": "%s",
+                  "threadCount": %d,
+                  "nonHeapMemoryMb": %d,
+                  "gcName": "%s",
+                  "totalEntities": %d,
+                  "livingEntities": %d,
+                  "itemEntities": %d,
+                  "avgPing": %d,
+                  "worlds": %s,
                   "throttleLevel": %d,
                   "throttleName": "%s",
                   "engine": "%s",
@@ -901,6 +1064,25 @@ public final class UniverseWebPanel {
                     "minecraftJava": %d,
                     "webAdmin": %d,
                     "geyserBedrock": %d
+                  },
+                  "tuning": {
+                    "dabEnabled": %b,
+                    "dabActivationDistance": %d,
+                    "dabMaxTickFreq": %d,
+                    "hopperCacheInventoryLookups": %b,
+                    "hopperThrottleEmptyTicks": %d,
+                    "redstoneMaxUpdatesPerTick": %d,
+                    "viewDistanceCap": %d,
+                    "simulationDistanceCap": %d,
+                    "playerCollisionsEnabled": %b,
+                    "maxCollisionsPerEntity": %d,
+                    "disableAmbientMobs": %b,
+                    "disableWaterMobs": %b,
+                    "itemMergeRadius": %.1f,
+                    "memoryAutoTrimEnabled": %b,
+                    "memoryTrimThresholdPercent": %.1f,
+                    "idleHibernationEnabled": %b,
+                    "idleHibernationTimeoutSeconds": %d
                   }
                 }
                 """,
@@ -912,6 +1094,22 @@ public final class UniverseWebPanel {
                 UniversePurpurConfig.webDiscordInviteUrl,
                 gov.getCurrentTps(),
                 gov.getCurrentMspt(),
+                gov.getTps1m(),
+                gov.getTps5m(),
+                gov.getTps15m(),
+                procCpu,
+                sysCpu,
+                cores,
+                uptime,
+                escapeJson(uptimeFmt),
+                threads,
+                nonHeapMb,
+                escapeJson(gcName),
+                cachedTotalEntities,
+                cachedLivingEntities,
+                cachedItemEntities,
+                avgPing,
+                cachedWorldsJson,
                 gov.getThrottleLevel(),
                 gov.getThrottleLevelName(),
                 UniversePurpurConfig.engine,
@@ -940,7 +1138,24 @@ public final class UniverseWebPanel {
                 org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.getSupportedRange(),
                 Bukkit.getPort() > 0 ? Bukkit.getPort() : 25565,
                 UniversePurpurConfig.webPanelPort,
-                UniversePurpurConfig.geyserPort
+                UniversePurpurConfig.geyserPort,
+                UniversePurpurConfig.dabEnabled,
+                UniversePurpurConfig.dabActivationDistance,
+                UniversePurpurConfig.dabMaxTickFreq,
+                UniversePurpurConfig.hopperCacheInventoryLookups,
+                UniversePurpurConfig.hopperThrottleEmptyTicks,
+                UniversePurpurConfig.redstoneMaxUpdatesPerTick,
+                UniversePurpurConfig.viewDistanceCap,
+                UniversePurpurConfig.simulationDistanceCap,
+                UniversePurpurConfig.playerCollisionsEnabled,
+                UniversePurpurConfig.maxCollisionsPerEntity,
+                UniversePurpurConfig.disableAmbientMobs,
+                UniversePurpurConfig.disableWaterMobs,
+                UniversePurpurConfig.itemMergeRadius,
+                UniversePurpurConfig.memoryAutoTrimEnabled,
+                UniversePurpurConfig.memoryTrimThresholdPercent,
+                UniversePurpurConfig.idleHibernationEnabled,
+                UniversePurpurConfig.idleHibernationTimeoutSeconds
         );
 
         sendJsonResponse(exchange, 200, json);
@@ -1256,6 +1471,98 @@ public final class UniverseWebPanel {
         }
 
         sendJsonResponse(exchange, 400, "{\"error\":\"Unknown action\"}");
+    }
+
+    private void handleGranularTuningApi(HttpExchange exchange) throws IOException {
+        String body = readRequestBody(exchange);
+        Boolean dab = extractJsonBoolean(body, "dabEnabled");
+        Integer dabDist = extractJsonInt(body, "dabActivationDistance");
+        Integer dabFreq = extractJsonInt(body, "dabMaxTickFreq");
+
+        Boolean hopperCache = extractJsonBoolean(body, "hopperCacheInventoryLookups");
+        Integer hopperThrottle = extractJsonInt(body, "hopperThrottleEmptyTicks");
+        Integer redstoneMax = extractJsonInt(body, "redstoneMaxUpdatesPerTick");
+
+        Integer viewDist = extractJsonInt(body, "viewDistanceCap");
+        Integer simDist = extractJsonInt(body, "simulationDistanceCap");
+
+        Boolean playerCol = extractJsonBoolean(body, "playerCollisionsEnabled");
+        Integer maxCol = extractJsonInt(body, "maxCollisionsPerEntity");
+
+        Boolean disableAmbient = extractJsonBoolean(body, "disableAmbientMobs");
+        Boolean disableWater = extractJsonBoolean(body, "disableWaterMobs");
+        Double itemMerge = extractJsonDouble(body, "itemMergeRadius");
+
+        Boolean autoTrim = extractJsonBoolean(body, "memoryAutoTrimEnabled");
+        Double trimThreshold = extractJsonDouble(body, "memoryTrimThresholdPercent");
+
+        Boolean idleHib = extractJsonBoolean(body, "idleHibernationEnabled");
+        Integer idleTimeout = extractJsonInt(body, "idleHibernationTimeoutSeconds");
+
+        Bukkit.getScheduler().runTask(PLUGIN, () -> {
+            UniversePurpurConfig.updateGranularConfig(
+                    dab, dabDist, dabFreq,
+                    hopperCache, hopperThrottle, redstoneMax,
+                    viewDist, simDist,
+                    playerCol, maxCol,
+                    disableAmbient, disableWater, itemMerge,
+                    autoTrim, trimThreshold,
+                    idleHib, idleTimeout
+            );
+        });
+
+        sendJsonResponse(exchange, 200, "{\"success\":true,\"message\":\"Ajustes de optimización avanzados aplicados en caliente\"}");
+    }
+
+    private static Boolean extractJsonBoolean(String json, String key) {
+        String val = extractJsonRaw(json, key);
+        if (val == null) return null;
+        val = val.trim().toLowerCase();
+        if (val.startsWith("true")) return true;
+        if (val.startsWith("false")) return false;
+        return null;
+    }
+
+    private static Integer extractJsonInt(String json, String key) {
+        String val = extractJsonRaw(json, key);
+        if (val == null) return null;
+        try {
+            return Integer.parseInt(val.trim().replaceAll("[^0-9\\-]", ""));
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    private static Double extractJsonDouble(String json, String key) {
+        String val = extractJsonRaw(json, key);
+        if (val == null) return null;
+        try {
+            return Double.parseDouble(val.trim().replaceAll("[^0-9\\.\\-]", ""));
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    private static String extractJsonRaw(String json, String key) {
+        if (json == null || key == null) return null;
+        String searchKey = "\"" + key + "\"";
+        int keyIdx = json.indexOf(searchKey);
+        if (keyIdx == -1) return null;
+        int colonIdx = json.indexOf(':', keyIdx + searchKey.length());
+        if (colonIdx == -1) return null;
+        int start = colonIdx + 1;
+        while (start < json.length() && Character.isWhitespace(json.charAt(start))) start++;
+        if (start >= json.length()) return null;
+        if (json.charAt(start) == '"') {
+            int end = json.indexOf('"', start + 1);
+            if (end == -1) return null;
+            return json.substring(start + 1, end);
+        }
+        int end = start;
+        while (end < json.length() && json.charAt(end) != ',' && json.charAt(end) != '}' && json.charAt(end) != ']') {
+            end++;
+        }
+        return json.substring(start, end).trim();
     }
 
     private static String extractJsonString(String json, String key) {
@@ -1918,7 +2225,16 @@ public final class UniverseWebPanel {
 """;
 
     // --- Ultra-Modern Admin Control Panel SPA ---
-    private static final String ADMIN_PANEL_HTML = """
+    private static final String ADMIN_PANEL_HTML = buildAdminPanelHtml();
+
+    private static String buildAdminPanelHtml() {
+        return new StringBuilder(ADMIN_PANEL_HTML_PART1.length() + ADMIN_PANEL_HTML_PART2.length())
+                .append(ADMIN_PANEL_HTML_PART1)
+                .append(ADMIN_PANEL_HTML_PART2)
+                .toString();
+    }
+
+    private static final String ADMIN_PANEL_HTML_PART1 = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1979,13 +2295,29 @@ public final class UniverseWebPanel {
     .pill-red { background: rgba(255,23,68,0.15); color: var(--red); border: 1px solid rgba(255,23,68,0.3); }
 
     /* Charts Container */
-    .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 25px; }
-    @media (max-width: 1024px) { .charts-grid { grid-template-columns: 1fr; } }
+    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin-bottom: 25px; }
     .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
     .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .chart-header h4 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; }
     .chart-header span { font-size: 12px; color: var(--cyan); font-weight: 700; font-family: monospace; }
     canvas { width: 100% !important; height: 160px !important; display: block; }
+
+    /* Custom Switch & Slider */
+    .switch-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; cursor: pointer; }
+    .switch-label span { font-size: 13px; font-weight: 700; color: #fff; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #1e243d; transition: .3s; border-radius: 24px; border: 1px solid var(--border); }
+    .slider-toggle:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: #fff; transition: .3s; border-radius: 50%; }
+    input:checked + .slider-toggle { background-color: var(--cyan); border-color: var(--cyan); }
+    input:checked + .slider-toggle:before { transform: translateX(20px); background-color: #000; }
+
+    .range-box { margin-bottom: 16px; }
+    .range-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .range-header label { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .range-header b { font-size: 13px; color: var(--cyan); font-family: monospace; }
+    input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; background: #161b33; height: 8px; border-radius: 5px; outline: none; border: 1px solid var(--border); cursor: pointer; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--cyan); cursor: pointer; box-shadow: 0 0 10px rgba(0,240,255,0.6); }
 
     /* Quick Action Toolbar */
     .quick-toolbar { display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap; }
@@ -2080,6 +2412,9 @@ public final class UniverseWebPanel {
         <div class="pulse-dot"></div>
         <span id="headerThrottle">Óptimo (20.0 TPS)</span>
       </div>
+      <div class="status-pill" style="background:rgba(255,145,0,0.1); border-color:rgba(255,145,0,0.3); color:#ff9100;">
+        <span>CPU: <b id="headerCpu">0.0%</b></span>
+      </div>
       <div class="user-pill">
         <span>Conectado: <b id="currentUserName">admin</b> (<b id="currentUserRole" style="color:var(--purple);">ADMIN</b>)</span>
       </div>
@@ -2103,47 +2438,54 @@ public final class UniverseWebPanel {
       <section id="tab-dashboard" class="tab active">
         <!-- Quick Action Toolbar -->
         <div class="quick-toolbar">
-          <div class="action-chip" onclick="triggerTrim()">🧹 Poda Suave de RAM</div>
-          <div class="action-chip" onclick="triggerPurge('items')">🗑️ Purgar Ítems Sueltos</div>
-          <div class="action-chip" onclick="triggerPurge('monsters')">🧟 Purgar Monstruos</div>
-          <div class="action-chip" onclick="setLag('auto')">🛡️ Modo Escudo AUTO</div>
           <div class="action-chip" onclick="setProfile('ultra-low-ram-cpu')">🍃 Perfil Ultra-Low</div>
-          <div class="action-chip" onclick="setProfile('15k-hyper-hub')">🏛️ Perfil Hyper-Hub</div>
+          <div class="action-chip" onclick="setProfile('extreme-potato-cpu')">🥔 Potato CPU</div>
+          <div class="action-chip" onclick="setProfile('pvp-competitive')">⚔️ PvP Competitive</div>
+          <div class="action-chip" onclick="setProfile('15k-hyper-hub')">🏛️ Hyper-Hub</div>
+          <div class="action-chip" onclick="triggerTrim()">🧹 Poda RAM</div>
+          <div class="action-chip" onclick="triggerPurge('items')">🗑️ Purgar Ítems</div>
+          <div class="action-chip" onclick="triggerPurge('monsters')">🧟 Purgar Monstruos</div>
+          <div class="action-chip" onclick="setLag('auto')">🛡️ Escudo AUTO</div>
         </div>
 
         <div class="grid">
           <div class="card">
             <h3>Rendimiento del Motor <span class="pill pill-green" id="throttlePill">Óptimo</span></h3>
             <div class="val" id="tpsVal">20.00</div>
-            <div class="sub">Tick MSPT: <span id="msptVal" style="color:var(--cyan);">0.0 ms</span> | Chunks: <span id="chunksVal">0</span></div>
+            <div class="sub">Tick MSPT: <span id="msptVal" style="color:var(--cyan);">0.0 ms</span> | 1m: <span id="tps1mVal">20.0</span> • 5m: <span id="tps5mVal">20.0</span></div>
           </div>
           <div class="card">
-            <h3>Motor & Tuner Activo <span class="pill pill-green" id="dashEngineBadge">TITAN</span></h3>
-            <div class="val" id="dashEngineVal" style="font-size:16px; color:var(--cyan); line-height:1.2; margin-top:6px;">Titan Hyper-Scale</div>
-            <div class="sub">Tuner: <b id="dashTunerVal" style="color:var(--yellow);">Ultra-Low RAM</b></div>
-          </div>
-          <div class="card">
-            <h3>Jugadores Online <span class="pill pill-green" id="profileBadge">Profile</span></h3>
-            <div class="val" id="playersVal">0 / 15,000</div>
-            <div class="sub">Spatial 2D: <span id="spatialVal" style="color:var(--cyan);">0</span> buckets | Linked: <span id="linkedVal">0</span></div>
+            <h3>Carga CPU del Proceso <span class="pill pill-green" id="cpuPill">0.0%</span></h3>
+            <div class="val" id="cpuVal">0.0%</div>
+            <div class="sub">Sistema: <span id="cpuSysVal" style="color:var(--yellow);">0.0%</span> | Cores: <span id="cpuCoresVal">4</span> | Uptime: <span id="uptimeVal">0m</span></div>
           </div>
           <div class="card">
             <h3>Memoria Heap JVM <span class="pill" id="ramPercentPill">0%</span></h3>
             <div class="val" id="ramVal">0 MB</div>
-            <div class="sub">Pausa GC: <span id="gcVal">0</span> ms | Podas Auto: <span id="trimCountVal">0</span></div>
+            <div class="sub">Off-Heap: <span id="nonHeapVal" style="color:var(--purple);">0 MB</span> | Pausa GC: <span id="gcVal">0</span> ms</div>
+          </div>
+          <div class="card">
+            <h3>Jugadores Online <span class="pill pill-green" id="profileBadge">Profile</span></h3>
+            <div class="val" id="playersVal">0 / 15,000</div>
+            <div class="sub">Ping Prom: <span id="avgPingVal" style="color:var(--green);">0 ms</span> | 2D Spatial: <span id="spatialVal">0</span> | Linked: <span id="linkedVal">0</span></div>
+          </div>
+          <div class="card">
+            <h3>Entidades del Servidor <span class="pill pill-green" id="entPill">Vivas</span></h3>
+            <div class="val" id="totalEntVal">0</div>
+            <div class="sub">Mobs: <span id="livingEntVal" style="color:var(--cyan);">0</span> | Ítems: <span id="itemEntVal">0</span> | Chunks: <span id="chunksVal">0</span></div>
           </div>
           <div class="card">
             <h3>Shield Anti-Crash & Zero-Day <span class="pill pill-green">Activo</span></h3>
             <div class="val" id="shieldVal">0</div>
-            <div class="sub">Payloads: <span id="payloadsVal">0</span> | Movement: <span id="movVal">0</span></div>
+            <div class="sub">Payloads: <span id="payloadsVal">0</span> | Movement: <span id="movVal">0</span> | Hilos: <span id="threadsVal">0</span></div>
           </div>
         </div>
 
-        <!-- Real-time Canvas Charts -->
+        <!-- Real-time Canvas Charts (4 Synchronized Monitors) -->
         <div class="charts-grid">
           <div class="chart-box">
             <div class="chart-header">
-              <h4>Monitor de Rendimiento en Tiempo Real (TPS - 60s)</h4>
+              <h4>Monitor de Rendimiento (TPS - 60s)</h4>
               <span id="chartTpsLabel">20.00 TPS</span>
             </div>
             <canvas id="tpsChart"></canvas>
@@ -2154,6 +2496,44 @@ public final class UniverseWebPanel {
               <span id="chartMsptLabel">0.0 ms</span>
             </div>
             <canvas id="msptChart"></canvas>
+          </div>
+          <div class="chart-box">
+            <div class="chart-header">
+              <h4>Carga CPU del Proceso (60s)</h4>
+              <span id="chartCpuLabel">0.0%</span>
+            </div>
+            <canvas id="cpuChart"></canvas>
+          </div>
+          <div class="chart-box">
+            <div class="chart-header">
+              <h4>Consumo RAM Heap (60s)</h4>
+              <span id="chartRamLabel">0 MB</span>
+            </div>
+            <canvas id="ramChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Live World Breakdown Table -->
+        <div class="card" style="margin-bottom: 25px;">
+          <h3>🌍 Telemetría y Carga por Mundo</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mundo</th>
+                  <th>Dimensión</th>
+                  <th>Chunks</th>
+                  <th>Total Entidades</th>
+                  <th>Mobs Vivos</th>
+                  <th>Ítems Sueltos</th>
+                  <th>Jugadores</th>
+                  <th>Dist. Vista / Sim</th>
+                </tr>
+              </thead>
+              <tbody id="worldsBody">
+                <tr><td colspan="8" style="text-align:center; color:var(--muted); padding:15px;">Cargando mundos...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -2279,6 +2659,20 @@ public final class UniverseWebPanel {
               </div>
               <span style="font-size:12px; color:var(--muted); margin-top:4px;">Para VPS y hostings económicos. View-dist 4, sim-dist 2, 0 colisiones, recolección agresiva.</span>
             </div>
+            <div id="tuner-card-extreme-potato-cpu" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px; border-width:2px;" onclick="setProfile('extreme-potato-cpu')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:#ffb703;">🥔 extreme-potato-cpu</b>
+                <span class="pill pill-green" id="tuner-badge-extreme-potato-cpu" style="display:none;">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:4px;">Para 0.5-1 vCPU. View 3, sim 2, DAB a 120 ticks, sin colisiones, poda a 75% RAM.</span>
+            </div>
+            <div id="tuner-card-pvp-competitive" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px; border-width:2px;" onclick="setProfile('pvp-competitive')">
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <b style="color:#ff0054;">⚔️ pvp-competitive</b>
+                <span class="pill pill-green" id="tuner-badge-pvp-competitive" style="display:none;">EN USO</span>
+              </div>
+              <span style="font-size:12px; color:var(--muted); margin-top:4px;">500 pps, colisiones completas, cero tick skips en combate, alta fidelidad de registro de golpes.</span>
+            </div>
             <div id="tuner-card-15k-hyper-hub" class="action-chip" style="flex-direction:column; align-items:flex-start; padding:16px; border-width:2px;" onclick="setProfile('15k-hyper-hub')">
               <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
                 <b style="color:var(--cyan);">🏛️ 15k-hyper-hub</b>
@@ -2306,6 +2700,150 @@ public final class UniverseWebPanel {
                 <span class="pill pill-green" id="tuner-badge-balanced" style="display:none;">EN USO</span>
               </div>
               <span style="font-size:12px; color:var(--muted); margin-top:4px;">Equilibrio general entre simulación de mundo, carga de chunks y uso de RAM/CPU.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Centro de Optimización Avanzada (Granular Live Tuning) -->
+        <div class="card" style="margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+            <h3>🎚️ Centro de Optimización Avanzada (Live Granular Tuning)</h3>
+            <button class="btn" style="padding:7px 18px; background:linear-gradient(135deg, var(--cyan), #00b4d8); color:#000;" onclick="applyGranularTuning()">💾 Aplicar Ajustes en Caliente</button>
+          </div>
+          <p style="font-size:13px; color:var(--muted); margin-bottom:20px;">Ajusta de forma micro-quirúrgica y en caliente cada subsistema del servidor (DAB, hoppers, física, distancias y culling) sin reiniciar.</p>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:20px;">
+            <!-- Grupo 1: Dynamic Brain & Entidades -->
+            <div style="background:#0a0d1c; border:1px solid var(--border); border-radius:12px; padding:16px;">
+              <h4 style="font-size:12px; text-transform:uppercase; color:var(--cyan); margin-bottom:14px; font-weight:800;">🧠 Dynamic Brain Activation (DAB)</h4>
+              <label class="switch-label">
+                <span>Activar DAB (Throttling Lejano)</span>
+                <label class="switch">
+                  <input type="checkbox" id="gDabEnabled">
+                  <span class="slider-toggle"></span>
+                </label>
+              </label>
+              <div class="range-box">
+                <div class="range-header">
+                  <label>Frecuencia Ticks Lejanos (DAB Max Ticks)</label>
+                  <b id="lblDabMaxTicks">20 ticks</b>
+                </div>
+                <input type="range" id="gDabMaxTicks" min="1" max="200" value="20" oninput="document.getElementById('lblDabMaxTicks').innerText = this.value + ' ticks'">
+              </div>
+              <div class="range-box">
+                <div class="range-header">
+                  <label>Radio de Activación Plena</label>
+                  <b id="lblDabDist">12 bloques</b>
+                </div>
+                <input type="range" id="gDabDist" min="4" max="64" value="12" oninput="document.getElementById('lblDabDist').innerText = this.value + ' bloques'">
+              </div>
+              <div class="range-box">
+                <div class="range-header">
+                  <label>Colisiones Máximas por Entidad</label>
+                  <b id="lblMaxColl">0</b>
+                </div>
+                <input type="range" id="gMaxColl" min="0" max="8" value="0" oninput="document.getElementById('lblMaxColl').innerText = this.value">
+              </div>
+            </div>
+
+            <!-- Grupo 2: Tolvas & Redstone -->
+            <div style="background:#0a0d1c; border:1px solid var(--border); border-radius:12px; padding:16px;">
+              <h4 style="font-size:12px; text-transform:uppercase; color:var(--yellow); margin-bottom:14px; font-weight:800;">⚡ Tolvas (Hoppers) & Redstone</h4>
+              <label class="switch-label">
+                <span>Optimizar Empuje de Tolvas</span>
+                <label class="switch">
+                  <input type="checkbox" id="gHopperPush">
+                  <span class="slider-toggle"></span>
+                </label>
+              </label>
+              <div class="range-box">
+                <div class="range-header">
+                  <label>Cantidad Transferencia Tolvas</label>
+                  <b id="lblHopperAmount">1 ítems</b>
+                </div>
+                <input type="range" id="gHopperAmount" min="1" max="64" value="1" oninput="document.getElementById('lblHopperAmount').innerText = this.value + ' ítems'">
+              </div>
+              <label class="switch-label" style="margin-top:10px;">
+                <span>Redstone Alternativo de Alto Rendimiento</span>
+                <label class="switch">
+                  <input type="checkbox" id="gAltRedstone">
+                  <span class="slider-toggle"></span>
+                </label>
+              </label>
+              <div class="range-box">
+                <div class="range-header">
+                  <label>Límite Actualizaciones Redstone / Tick</label>
+                  <b id="lblRedstoneLimit">500 ops</b>
+                </div>
+                <input type="range" id="gRedstoneLimit" min="50" max="2500" step="50" value="500" oninput="document.getElementById('lblRedstoneLimit').innerText = this.value + ' ops'">
+              </div>
+            </div>
+
+            <!-- Grupo 3: Distancias & Mundo -->
+            <div style="background:#0a0d1c; border:1px solid var(--border); border-radius:12px; padding:16px;">
+              <h4 style="font-size:12px; text-transform:uppercase; color:var(--green); margin-bottom:14px; font-weight:800;">🗺️ Distancias y Mundo</h4>
+              <div class="range-box">
+                <div class="range-header">
+                  <label>Distancia de Visión (View Distance)</label>
+                  <b id="lblViewDist">4 chunks</b>
+                </div>
+                <input type="range" id="gViewDist" min="2" max="16" value="4" oninput="document.getElementById('lblViewDist').innerText = this.value + ' chunks'">
+              </div>
+              <div class="range-box">
+                <div class="range-header">
+                  <label>Distancia de Simulación (Sim Distance)</label>
+                  <b id="lblSimDist">2 chunks</b>
+                </div>
+                <input type="range" id="gSimDist" min="2" max="12" value="2" oninput="document.getElementById('lblSimDist').innerText = this.value + ' chunks'">
+              </div>
+              <label class="switch-label">
+                <span>Player Culling Dinámico (Spatial)</span>
+                <label class="switch">
+                  <input type="checkbox" id="gPlayerCulling">
+                  <span class="slider-toggle"></span>
+                </label>
+              </label>
+              <label class="switch-label">
+                <span>Spawning de Monstruos</span>
+                <label class="switch">
+                  <input type="checkbox" id="gSpawnMonsters">
+                  <span class="slider-toggle"></span>
+                </label>
+              </label>
+              <label class="switch-label">
+                <span>Spawning de Animales</span>
+                <label class="switch">
+                  <input type="checkbox" id="gSpawnAnimals">
+                  <span class="slider-toggle"></span>
+                </label>
+              </label>
+            </div>
+
+            <!-- Grupo 4: Memoria & Hibernación -->
+            <div style="background:#0a0d1c; border:1px solid var(--border); border-radius:12px; padding:16px;">
+              <h4 style="font-size:12px; text-transform:uppercase; color:var(--purple); margin-bottom:14px; font-weight:800;">🍃 Memoria y Ahorro Extremo</h4>
+              <div class="range-box">
+                <div class="range-header">
+                  <label>Umbral Auto-Trim de Memoria</label>
+                  <b id="lblAutoTrim">85%</b>
+                </div>
+                <input type="range" id="gAutoTrim" min="50" max="95" value="85" oninput="document.getElementById('lblAutoTrim').innerText = this.value + '%'">
+              </div>
+              <label class="switch-label">
+                <span>Hibernación Cero Jugadores (Deep Sleep)</span>
+                <label class="switch">
+                  <input type="checkbox" id="gZeroPlayer">
+                  <span class="slider-toggle"></span>
+                </label>
+              </label>
+              <div style="margin-top:14px; padding:12px; background:rgba(157,78,221,0.1); border:1px solid rgba(157,78,221,0.25); border-radius:8px;">
+                <span style="font-size:11px; color:var(--muted); line-height:1.4; display:block;">
+                  💡 <b>Consejo Titan:</b> Para servidores con 0.5-1 CPU, usa <b>extreme-potato-cpu</b>, reduce sim distance a 2 y activa la hibernación. Para PvP sin lag visual, usa <b>pvp-competitive</b> con sim distance a 4 y colisiones activas.
+                </span>
+              </div>
+              <div style="margin-top:16px;">
+                <button class="btn" style="width:100%; justify-content:center; background:linear-gradient(135deg, var(--green), #00b4d8); color:#000;" onclick="applyGranularTuning()">⚡ Aplicar Parámetros Ahora</button>
+              </div>
             </div>
           </div>
         </div>
@@ -2482,13 +3020,33 @@ public final class UniverseWebPanel {
       </section>
     </main>
   </div>
+""";
+
+    private static final String ADMIN_PANEL_HTML_PART2 = """
 
   <script>
     let token = localStorage.getItem('up_session_token') || '';
     const tpsHistory = new Array(60).fill(20.0);
     const msptHistory = new Array(60).fill(0.0);
+    const cpuHistory = new Array(60).fill(0.0);
+    const ramHistory = new Array(60).fill(0);
     const commandHistory = [];
     let historyIndex = -1;
+    let userTuningFocused = false;
+
+    function syncTuningInput(id, val) {
+      const el = document.getElementById(id);
+      if (el && typeof val === 'boolean') el.checked = val;
+    }
+
+    function syncTuningRange(id, lblId, val, unit) {
+      const el = document.getElementById(id);
+      const lbl = document.getElementById(lblId);
+      if (el && typeof val === 'number') {
+        el.value = val;
+        if (lbl) lbl.innerText = val + unit;
+      }
+    }
 
     function showToast(message, type = 'info') {
       const container = document.getElementById('toastContainer');
@@ -2673,40 +3231,122 @@ public final class UniverseWebPanel {
       const data = await api('/api/status');
       if (!data) return;
 
-      const tps = data.tps || 20.0;
-      const mspt = data.mspt || 0.0;
+      const tps = (typeof data.tps === 'number') ? data.tps : 20.0;
+      const mspt = (typeof data.mspt === 'number') ? data.mspt : 0.0;
+      const cpu = (typeof data.processCpuPercent === 'number') ? data.processCpuPercent : 0.0;
+      const ram = (typeof data.usedMemoryMb === 'number') ? data.usedMemoryMb : 0;
 
       // Update history queues
       tpsHistory.push(tps);
       tpsHistory.shift();
       msptHistory.push(mspt);
       msptHistory.shift();
+      cpuHistory.push(cpu);
+      cpuHistory.shift();
+      ramHistory.push(ram);
+      ramHistory.shift();
 
-      // Render Charts
+      // Render 4 Charts
       drawChart('tpsChart', tpsHistory, 20.0, '#00e676', 'TPS');
       drawChart('msptChart', msptHistory, 50.0, '#00f0ff', 'ms', true);
+      drawChart('cpuChart', cpuHistory, 100.0, '#ffd600', '%');
+      drawChart('ramChart', ramHistory, Math.max(1024, data.maxMemoryMb || 1024), '#9d4edd', 'MB');
 
       document.getElementById('chartTpsLabel').innerText = tps.toFixed(2) + ' TPS';
       document.getElementById('chartMsptLabel').innerText = mspt.toFixed(1) + ' ms';
+      document.getElementById('chartCpuLabel').innerText = cpu.toFixed(1) + '%';
+      document.getElementById('chartRamLabel').innerText = ram + ' MB';
 
+      // Header pills
+      const headerCpu = document.getElementById('headerCpu');
+      if (headerCpu) headerCpu.innerText = cpu.toFixed(1) + '%';
+      const pill = document.getElementById('throttlePill');
+      if (pill) {
+        pill.innerText = data.throttleName || 'Óptimo';
+        pill.className = 'pill ' + (data.throttleLevel === 0 ? 'pill-green' : data.throttleLevel <= 2 ? 'pill-yellow' : 'pill-red');
+      }
+      const headerThrottle = document.getElementById('headerThrottle');
+      if (headerThrottle) headerThrottle.innerText = (data.throttleName || 'Óptimo') + ' (' + tps.toFixed(2) + ' TPS)';
+
+      // Card 1: Motor Rendimiento
       document.getElementById('tpsVal').innerText = tps.toFixed(2);
       document.getElementById('msptVal').innerText = mspt.toFixed(1) + ' ms';
-      document.getElementById('chunksVal').innerText = data.loadedChunks || 0;
+      const tps1m = document.getElementById('tps1mVal');
+      if (tps1m) tps1m.innerText = (data.tps1m || 20.0).toFixed(2);
+      const tps5m = document.getElementById('tps5mVal');
+      if (tps5m) tps5m.innerText = (data.tps5m || 20.0).toFixed(2);
+
+      // Card 2: CPU
+      document.getElementById('cpuVal').innerText = cpu.toFixed(1) + '%';
+      const cpuSys = document.getElementById('cpuSysVal');
+      if (cpuSys) cpuSys.innerText = ((data.systemCpuPercent || 0.0).toFixed(1)) + '%';
+      const cpuCores = document.getElementById('cpuCoresVal');
+      if (cpuCores) cpuCores.innerText = data.availableProcessors || 1;
+      const uptime = document.getElementById('uptimeVal');
+      if (uptime) uptime.innerText = data.uptimeFormatted || '0m';
+      const cpuPill = document.getElementById('cpuPill');
+      if (cpuPill) {
+        cpuPill.innerText = cpu.toFixed(1) + '%';
+        cpuPill.className = 'pill ' + (cpu < 50 ? 'pill-green' : cpu < 80 ? 'pill-yellow' : 'pill-red');
+      }
+
+      // Card 3: RAM
+      document.getElementById('ramVal').innerText = ram + ' MB / ' + (data.maxMemoryMb || 0) + ' MB';
+      const nonHeap = document.getElementById('nonHeapVal');
+      if (nonHeap) nonHeap.innerText = (data.nonHeapMemoryMb || 0) + ' MB';
+      const ramPct = (data.memoryUsagePercent || 0).toFixed(1);
+      const ramPill = document.getElementById('ramPercentPill');
+      if (ramPill) {
+        ramPill.innerText = ramPct + '%';
+        ramPill.className = 'pill ' + (ramPct < 70 ? 'pill-green' : ramPct < 85 ? 'pill-yellow' : 'pill-red');
+      }
+      const gc = document.getElementById('gcVal');
+      if (gc) gc.innerText = data.gcPauseMs || 0;
+
+      // Card 4: Jugadores
       document.getElementById('playersVal').innerText = (data.onlinePlayers || 0) + ' / ' + (data.maxPlayers || 15000);
       document.getElementById('profileBadge').innerText = data.profile || 'default';
+      const avgPing = document.getElementById('avgPingVal');
+      if (avgPing) avgPing.innerText = (data.avgPing || 0) + ' ms';
       document.getElementById('spatialVal').innerText = data.spatialBuckets || 0;
       document.getElementById('linkedVal').innerText = data.linkedAccountsCount || 0;
 
-      // Active Engine & Tuner Cards
-      if (data.engineName) {
-        document.getElementById('dashEngineVal').innerText = data.engineName;
-        document.getElementById('dashEngineBadge').innerText = (data.engine || 'TITAN').toUpperCase();
-      }
-      if (data.profileName) {
-        document.getElementById('dashTunerVal').innerText = data.profileName;
+      // Card 5: Entidades
+      const totEnt = document.getElementById('totalEntVal');
+      if (totEnt) totEnt.innerText = data.totalEntities || 0;
+      const livEnt = document.getElementById('livingEntVal');
+      if (livEnt) livEnt.innerText = data.livingEntities || 0;
+      const itemEnt = document.getElementById('itemEntVal');
+      if (itemEnt) itemEnt.innerText = data.itemEntities || 0;
+      document.getElementById('chunksVal').innerText = data.loadedChunks || 0;
+
+      // Card 6: Shield
+      document.getElementById('shieldVal').innerText = data.blockedExploits || 0;
+      document.getElementById('payloadsVal').innerText = data.blockedPayloads || 0;
+      document.getElementById('movVal').innerText = data.blockedMovement || 0;
+      const threads = document.getElementById('threadsVal');
+      if (threads) threads.innerText = data.threadCount || 0;
+
+      // Telemetria por Mundo
+      const wb = document.getElementById('worldsBody');
+      if (wb && data.worlds && Array.isArray(data.worlds) && data.worlds.length > 0) {
+        wb.innerHTML = data.worlds.map(w => `
+          <tr>
+            <td><b>${escapeHtml(w.name)}</b></td>
+            <td><span class="pill pill-green">${escapeHtml(w.dimension || 'NORMAL')}</span></td>
+            <td>${w.chunks || 0}</td>
+            <td>${w.entities || 0}</td>
+            <td><span style="color:var(--cyan); font-weight:bold;">${w.living || 0}</span></td>
+            <td><span style="color:var(--yellow);">${w.items || 0}</span></td>
+            <td><b>${w.players || 0}</b></td>
+            <td><code>${w.viewDistance || 4} / ${w.simulationDistance || 2}</code></td>
+          </tr>
+        `).join('');
+      } else if (wb) {
+        wb.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--muted); padding:15px;">No hay mundos activos.</td></tr>';
       }
 
-      // Update Engine & Tuner selection in tab-tuning
+      // Active Engine & Tuner selection
       const curEng = (data.engine || 'titan-hyper-scale').toLowerCase();
       ['titan-hyper-scale', 'purpur-optimized', 'vanilla-fidelity'].forEach(e => {
         const el = document.getElementById('engine-card-' + e);
@@ -2716,25 +3356,32 @@ public final class UniverseWebPanel {
       });
 
       const curTun = (data.profile || 'ultra-low-ram-cpu').toLowerCase();
-      ['ultra-low-ram-cpu', '15k-hyper-hub', '15k-mega-arena', '15k-scale-smp', 'balanced'].forEach(t => {
+      ['ultra-low-ram-cpu', 'extreme-potato-cpu', 'pvp-competitive', '15k-hyper-hub', '15k-mega-arena', '15k-scale-smp', 'balanced'].forEach(t => {
         const el = document.getElementById('tuner-card-' + t);
         const bd = document.getElementById('tuner-badge-' + t);
         if (el) el.style.borderColor = (curTun === t) ? 'var(--green)' : 'var(--border)';
         if (bd) bd.style.display = (curTun === t) ? 'inline-block' : 'none';
       });
 
-      document.getElementById('ramVal').innerText = (data.usedMemoryMb || 0) + ' MB / ' + (data.maxMemoryMb || 0) + ' MB';
-      const ramPct = (data.memoryUsagePercent || 0).toFixed(1);
-      const ramPill = document.getElementById('ramPercentPill');
-      ramPill.innerText = ramPct + '%';
-      ramPill.className = 'pill ' + (ramPct < 70 ? 'pill-green' : ramPct < 85 ? 'pill-yellow' : 'pill-red');
-
-      document.getElementById('gcVal').innerText = data.gcPauseMs || 0;
-      document.getElementById('trimCountVal').innerText = data.autoTrimCount || 0;
-
-      document.getElementById('shieldVal').innerText = data.blockedExploits || 0;
-      document.getElementById('payloadsVal').innerText = data.blockedPayloads || 0;
-      document.getElementById('movVal').innerText = data.blockedMovement || 0;
+      // Granular Tuning inputs sync (only if not focused by user)
+      if (!userTuningFocused && data.tuning) {
+        const t = data.tuning;
+        syncTuningInput('gDabEnabled', t.dabEnabled);
+        syncTuningRange('gDabMaxTicks', 'lblDabMaxTicks', t.dabMaxTicks, ' ticks');
+        syncTuningRange('gDabDist', 'lblDabDist', t.dabStartDistance, ' bloques');
+        syncTuningRange('gMaxColl', 'lblMaxColl', t.maxEntityCollisions, '');
+        syncTuningInput('gHopperPush', t.hopperPushLimit);
+        syncTuningRange('gHopperAmount', 'lblHopperAmount', t.hopperTransferAmount, ' ítems');
+        syncTuningInput('gAltRedstone', t.alternateRedstone);
+        syncTuningRange('gRedstoneLimit', 'lblRedstoneLimit', t.redstoneUpdateLimit, ' ops');
+        syncTuningRange('gViewDist', 'lblViewDist', t.viewDistance, ' chunks');
+        syncTuningRange('gSimDist', 'lblSimDist', t.simulationDistance, ' chunks');
+        syncTuningInput('gPlayerCulling', t.playerCulling);
+        syncTuningInput('gSpawnMonsters', t.spawnMonsters);
+        syncTuningInput('gSpawnAnimals', t.spawnAnimals);
+        syncTuningRange('gAutoTrim', 'lblAutoTrim', t.autoTrimThresholdPercent, '%');
+        syncTuningInput('gZeroPlayer', t.zeroPlayerHibernation);
+      }
 
       if (data.ports) {
         document.getElementById('pJava').innerText = data.ports.minecraftJava || 25565;
@@ -2744,11 +3391,6 @@ public final class UniverseWebPanel {
       if (data.multiVersion) {
         document.getElementById('multiVerRange').innerText = data.multiVersion.range || '1.21.x -> 1.26.x';
       }
-
-      const pill = document.getElementById('throttlePill');
-      pill.innerText = data.throttleName || 'Óptimo';
-      pill.className = 'pill ' + (data.throttleLevel === 0 ? 'pill-green' : data.throttleLevel <= 2 ? 'pill-yellow' : 'pill-red');
-      document.getElementById('headerThrottle').innerText = (data.throttleName || 'Óptimo') + ' (' + tps.toFixed(2) + ' TPS)';
 
       // Auto-populate branding form if empty
       if (!document.getElementById('bTitle').value && data.title) {
@@ -3071,6 +3713,36 @@ public final class UniverseWebPanel {
       showToast('Modo Lag Shield establecido a: ' + mode, 'success');
       refreshStatus();
     }
+
+    async function applyGranularTuning() {
+      const payload = {
+        dabEnabled: document.getElementById('gDabEnabled') ? document.getElementById('gDabEnabled').checked : false,
+        dabMaxTicks: parseInt(document.getElementById('gDabMaxTicks').value) || 20,
+        dabStartDistance: parseInt(document.getElementById('gDabDist').value) || 12,
+        maxEntityCollisions: parseInt(document.getElementById('gMaxColl').value) || 0,
+        hopperPushLimit: document.getElementById('gHopperPush') ? document.getElementById('gHopperPush').checked : true,
+        hopperTransferAmount: parseInt(document.getElementById('gHopperAmount').value) || 1,
+        alternateRedstone: document.getElementById('gAltRedstone') ? document.getElementById('gAltRedstone').checked : true,
+        redstoneUpdateLimit: parseInt(document.getElementById('gRedstoneLimit').value) || 500,
+        viewDistance: parseInt(document.getElementById('gViewDist').value) || 4,
+        simulationDistance: parseInt(document.getElementById('gSimDist').value) || 2,
+        playerCulling: document.getElementById('gPlayerCulling') ? document.getElementById('gPlayerCulling').checked : true,
+        spawnMonsters: document.getElementById('gSpawnMonsters') ? document.getElementById('gSpawnMonsters').checked : true,
+        spawnAnimals: document.getElementById('gSpawnAnimals') ? document.getElementById('gSpawnAnimals').checked : true,
+        autoTrimThresholdPercent: parseInt(document.getElementById('gAutoTrim').value) || 85,
+        zeroPlayerHibernation: document.getElementById('gZeroPlayer') ? document.getElementById('gZeroPlayer').checked : true
+      };
+      const res = await api('/api/tuning/granular', 'POST', payload);
+      showToast(res && res.message ? res.message : 'Parámetros aplicados en caliente', res && res.success ? 'success' : 'error');
+      userTuningFocused = false;
+      refreshStatus();
+    }
+
+    document.querySelectorAll('[id^="g"]').forEach(el => {
+      el.addEventListener('focus', () => { userTuningFocused = true; });
+      el.addEventListener('input', () => { userTuningFocused = true; });
+      el.addEventListener('change', () => { userTuningFocused = true; });
+    });
 
     checkAuth();
     setInterval(refreshStatus, 2500);

@@ -32,7 +32,15 @@ import org.purpurmc.purpur.task.UniverseMemoryGovernor;
 public class UniversePurpurCommand extends Command {
 
     private static final List<String> SUBCOMMANDS = Arrays.asList("status", "stats", "memory", "profile", "version", "help");
-    private static final List<String> PROFILES = Arrays.asList("ultra-low-ram-cpu", "15k-hyper-hub", "15k-mega-arena", "15k-scale-smp");
+    private static final List<String> PROFILES = Arrays.asList(
+            "ultra-low-ram-cpu",
+            "extreme-potato-cpu",
+            "pvp-competitive",
+            "15k-hyper-hub",
+            "15k-mega-arena",
+            "15k-scale-smp",
+            "balanced"
+    );
 
     public UniversePurpurCommand(String name) {
         super(name);

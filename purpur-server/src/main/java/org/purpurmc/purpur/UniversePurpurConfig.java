@@ -383,6 +383,39 @@ public final class UniversePurpurConfig {
             itemMergeRadius = 5.0D;
             aggressiveMemorySaver = false;
             disableAmbientMobs = true;
+        } else if (newProfile != null && newProfile.equalsIgnoreCase("extreme-potato-cpu")) {
+            simulationDistanceCap = 2;
+            viewDistanceCap = 3;
+            maxVisiblePlayersPerClient = 12;
+            maxCollisionsPerEntity = 0;
+            playerCollisionsEnabled = false;
+            hopperThrottleEmptyTicks = 24;
+            hopperCacheInventoryLookups = true;
+            redstoneMaxUpdatesPerTick = 2000;
+            dabEnabled = true;
+            dabActivationDistance = 6;
+            dabMaxTickFreq = 60;
+            memoryTrimThresholdPercent = 75.0D;
+            maxAutoSaveChunksPerTick = 1;
+            itemMergeRadius = 6.0D;
+            aggressiveMemorySaver = true;
+            disableAmbientMobs = true;
+            disableWaterMobs = true;
+        } else if (newProfile != null && newProfile.equalsIgnoreCase("pvp-competitive")) {
+            simulationDistanceCap = 4;
+            viewDistanceCap = 6;
+            maxVisiblePlayersPerClient = 48;
+            maxCollisionsPerEntity = 2;
+            playerCollisionsEnabled = true;
+            hopperThrottleEmptyTicks = 8;
+            dabEnabled = true;
+            dabActivationDistance = 16;
+            dabMaxTickFreq = 10;
+            memoryTrimThresholdPercent = 85.0D;
+            tcpNoDelay = true;
+            packetRateLimitEnabled = true;
+            maxPacketsPerSecond = 500;
+            aggressiveMemorySaver = false;
         } else if (newProfile != null && newProfile.equalsIgnoreCase("15k-hyper-hub")) {
             simulationDistanceCap = 2;
             viewDistanceCap = 6;
@@ -430,8 +463,74 @@ public final class UniversePurpurConfig {
             return "15k Scale-SMP (Supervivencia & Skyblock)";
         } else if ("balanced".equalsIgnoreCase(profile)) {
             return "Balanced Enterprise (Balance General)";
+        } else if ("extreme-potato-cpu".equalsIgnoreCase(profile)) {
+            return "Extreme Potato CPU (Ultra Bajo Consumo)";
+        } else if ("pvp-competitive".equalsIgnoreCase(profile)) {
+            return "PvP Competitive (Hit-Reg & Tick Sync)";
         }
         return "Ultra-Low RAM/CPU (VPS Económico)";
+    }
+
+    public static void updateGranularConfig(
+            Boolean dab, Integer dabDist, Integer dabFreq,
+            Boolean hopperCache, Integer hopperThrottle, Integer redstoneMax,
+            Integer viewDist, Integer simDist,
+            Boolean playerCol, Integer maxCol,
+            Boolean disableAmbient, Boolean disableWater, Double itemMerge,
+            Boolean autoTrim, Double trimThreshold,
+            Boolean idleHib, Integer idleTimeout
+    ) {
+        if (dab != null) dabEnabled = dab;
+        if (dabDist != null) dabActivationDistance = Math.max(2, Math.min(64, dabDist));
+        if (dabFreq != null) dabMaxTickFreq = Math.max(1, Math.min(100, dabFreq));
+
+        if (hopperCache != null) hopperCacheInventoryLookups = hopperCache;
+        if (hopperThrottle != null) hopperThrottleEmptyTicks = Math.max(1, Math.min(64, hopperThrottle));
+        if (redstoneMax != null) redstoneMaxUpdatesPerTick = Math.max(100, Math.min(50000, redstoneMax));
+
+        if (viewDist != null) viewDistanceCap = Math.max(2, Math.min(32, viewDist));
+        if (simDist != null) simulationDistanceCap = Math.max(2, Math.min(32, simDist));
+
+        if (playerCol != null) playerCollisionsEnabled = playerCol;
+        if (maxCol != null) maxCollisionsPerEntity = Math.max(0, Math.min(16, maxCol));
+
+        if (disableAmbient != null) disableAmbientMobs = disableAmbient;
+        if (disableWater != null) disableWaterMobs = disableWater;
+        if (itemMerge != null) itemMergeRadius = Math.max(0.5D, Math.min(16.0D, itemMerge));
+
+        if (autoTrim != null) memoryAutoTrimEnabled = autoTrim;
+        if (trimThreshold != null) memoryTrimThresholdPercent = Math.max(30.0D, Math.min(95.0D, trimThreshold));
+
+        if (idleHib != null) idleHibernationEnabled = idleHib;
+        if (idleTimeout != null) idleHibernationTimeoutSeconds = Math.max(3, Math.min(300, idleTimeout));
+
+        if (config != null) {
+            config.set("global.mobs.dab.enabled", dabEnabled);
+            config.set("global.mobs.dab.activation-distance", dabActivationDistance);
+            config.set("global.mobs.dab.max-tick-freq", dabMaxTickFreq);
+            config.set("global.hoppers.cache-inventory-lookups", hopperCacheInventoryLookups);
+            config.set("global.hoppers.throttle-empty-ticks", hopperThrottleEmptyTicks);
+            config.set("global.redstone.max-updates-per-tick", redstoneMaxUpdatesPerTick);
+            config.set("global.chunks.view-distance-cap", viewDistanceCap);
+            config.set("global.chunks.simulation-distance-cap", simulationDistanceCap);
+            config.set("global.mobs.player-collisions-enabled", playerCollisionsEnabled);
+            config.set("global.mobs.max-collisions-per-entity", maxCollisionsPerEntity);
+            config.set("global.mobs.disable-ambient-mobs", disableAmbientMobs);
+            config.set("global.mobs.disable-water-mobs", disableWaterMobs);
+            config.set("global.mobs.item-merge-radius", itemMergeRadius);
+            config.set("global.performance.memory-auto-trim.enabled", memoryAutoTrimEnabled);
+            config.set("global.performance.memory-auto-trim.threshold-percent", memoryTrimThresholdPercent);
+            config.set("global.performance.idle-hibernation.enabled", idleHibernationEnabled);
+            config.set("global.performance.idle-hibernation.timeout-seconds", idleHibernationTimeoutSeconds);
+            save();
+        }
+
+        try {
+            for (World w : Bukkit.getWorlds()) {
+                applyWorldOptimizations(w);
+            }
+        } catch (Throwable ignore) {
+        }
     }
 
     public static void setEngine(String newEngine) {
