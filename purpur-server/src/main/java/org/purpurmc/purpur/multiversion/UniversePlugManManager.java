@@ -46,9 +46,50 @@ public final class UniversePlugManManager {
         }
 
         try {
+            configurePaperCompatibility(pluginsDir);
             ensurePlugMan(pluginsDir);
         } catch (Throwable ex) {
             Bukkit.getLogger().log(Level.WARNING, "[UniverseTitan] PlugMan Auto-Install: " + ex.getMessage());
+        }
+    }
+
+    private static void configurePaperCompatibility(File pluginsDir) {
+        try {
+            File plugmanDir = new File(pluginsDir, "PlugManX");
+            if (!plugmanDir.exists()) {
+                plugmanDir.mkdirs();
+            }
+            File configFile = new File(plugmanDir, "config.yml");
+            if (configFile.exists() && configFile.isFile()) {
+                String content = java.nio.file.Files.readString(configFile.toPath(), StandardCharsets.UTF_8);
+                if (content.contains("showPaperWarning: true")) {
+                    content = content.replace("showPaperWarning: true", "showPaperWarning: false");
+                    java.nio.file.Files.writeString(configFile.toPath(), content, StandardCharsets.UTF_8);
+                }
+            } else {
+                String defaultConfig = """
+                ###
+                # PlugManX Configuration - Auto-Tuned by UniversePurpur Titan Engine
+                ###
+                ignored-plugins: [ PlugMan,PlugManX,PlugManBungee,ViaVersion,ViaBackwards,ViaRewind,ProtocolSupport,ProtocolLib,PlotSquared ]
+                notify-on-broken-command-removal: true
+                auto-load:
+                  enabled: false
+                  check-every-seconds: 10
+                auto-unload:
+                  enabled: false
+                  check-every-seconds: 10
+                auto-reload:
+                  enabled: false
+                  check-every-seconds: 10
+                showPaperWarning: false
+                paperReloadDebug: false
+                reloadDependentsMode: REQUIRED_ONLY
+                version: 5
+                """;
+                java.nio.file.Files.writeString(configFile.toPath(), defaultConfig, StandardCharsets.UTF_8);
+            }
+        } catch (Throwable ignore) {
         }
     }
 
@@ -59,7 +100,7 @@ public final class UniversePlugManManager {
                 if (file.isFile() && file.getName().toLowerCase().endsWith(".jar")) {
                     String name = file.getName().toLowerCase();
                     if (name.startsWith("plugman")) {
-                        Bukkit.getLogger().info("[UniverseTitan] PlugMan detectado en plugins/ (" + file.getName() + ").");
+                        Bukkit.getLogger().info("[UniverseTitan] PlugMan detectado en plugins/ (" + file.getName() + ") - Soporte nativo Paper activo.");
                         return;
                     }
                 }

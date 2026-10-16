@@ -29,6 +29,8 @@ $files = @(
     "purpur-server\src\main\java\org\purpurmc\purpur\command\UniverseTpsCommand.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\command\UniverseSpigotCommand.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\command\UniverseLinkCommand.java",
+    "purpur-server\src\main\java\org\purpurmc\purpur\plugin\UniversePlugMan.java",
+    "purpur-server\src\main\java\org\purpurmc\purpur\command\UniversePlugManCommand.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\network\AntiCrashShield.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\network\PacketRateLimiter.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\task\UniverseGovernorTask.java",

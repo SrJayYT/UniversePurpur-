@@ -348,6 +348,17 @@ public final class UniversePurpurConfig {
                 known.put("gmsp", gmsp);
                 known.put("gm3", gmsp);
                 known.put("spectator", gmsp);
+
+                // Native Paper-Compatible PlugMan Engine
+                org.purpurmc.purpur.command.UniversePlugManCommand plugmanCmd = new org.purpurmc.purpur.command.UniversePlugManCommand("plugman");
+                known.put("plugman", plugmanCmd);
+                known.put("plugmanx", plugmanCmd);
+                known.put("upm", plugmanCmd);
+                known.put("titanplugman", plugmanCmd);
+                known.put("universeplugman", plugmanCmd);
+                known.put("plugman:plugman", plugmanCmd);
+                known.put("plugmanx:plugman", plugmanCmd);
+
                 try {
                     if (org.bukkit.Bukkit.getServer() instanceof org.bukkit.craftbukkit.CraftServer craftServer) {
                         craftServer.syncCommands();

@@ -2601,6 +2601,7 @@ public final class UniverseWebPanel {
             <span class="cmd-chip" onclick="quickCommand('tps')">tps</span>
             <span class="cmd-chip" onclick="quickCommand('version')">version</span>
             <span class="cmd-chip" onclick="quickCommand('pl')">pl</span>
+            <span class="cmd-chip" onclick="quickCommand('plugman list')">plugman list</span>
             <span class="cmd-chip" onclick="quickCommand('help')">help</span>
             <span class="cmd-chip" onclick="quickCommand('memory')">memory</span>
             <span class="cmd-chip" onclick="quickCommand('lag')">lag</span>

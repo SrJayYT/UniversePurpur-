@@ -51,6 +51,11 @@ public class UniversePluginsCommand extends Command {
         } else {
             for (Plugin p : plugins) {
                 boolean enabled = p.isEnabled();
+                boolean isPaper = org.purpurmc.purpur.plugin.UniversePlugMan.isPaperPlugin(p);
+                Component tag = isPaper
+                        ? Component.text(" [Paper]", NamedTextColor.AQUA, TextDecoration.BOLD)
+                        : Component.text(" [Bukkit]", NamedTextColor.GOLD);
+
                 String ver = p.getDescription().getVersion();
                 String authors = !p.getDescription().getAuthors().isEmpty()
                         ? " por " + String.join(", ", p.getDescription().getAuthors())
@@ -58,10 +63,11 @@ public class UniversePluginsCommand extends Command {
 
                 Component item = Component.text(" • ", NamedTextColor.GRAY)
                         .append(Component.text(p.getName(), enabled ? NamedTextColor.GREEN : NamedTextColor.RED, TextDecoration.BOLD))
+                        .append(tag)
                         .append(Component.text(" (v" + ver + ")", NamedTextColor.YELLOW))
                         .append(Component.text(authors, NamedTextColor.DARK_GRAY))
-                        .hoverEvent(HoverEvent.showText(Component.text("Clic para ver detalles de " + p.getName(), NamedTextColor.WHITE)))
-                        .clickEvent(ClickEvent.runCommand("/version " + p.getName()));
+                        .hoverEvent(HoverEvent.showText(Component.text("Clic para ver detalles de " + p.getName() + " (/plugman info)", NamedTextColor.WHITE)))
+                        .clickEvent(ClickEvent.runCommand("/plugman info " + p.getName()));
 
                 sender.sendMessage(item);
             }
