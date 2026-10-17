@@ -148,7 +148,7 @@ public final class UniversePurpurConfig {
     public static String licenseProductName = "UniversePurpur";
     public static String licenseServerUrl = "https://licences.scon.host/api/v1/license/verify";
     public static boolean licenseShutdownOnFailure = true;
-    public static int licenseHeartbeatMinutes = 60;
+    public static int licenseHeartbeatMinutes = 5;
 
     private UniversePurpurConfig() {}
 

@@ -20,7 +20,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.purpurmc.purpur.UniversePurpurConfig;
 
 /**
@@ -288,7 +290,7 @@ public final class UniverseLicenseManager {
             return;
         }
 
-        int interval = Math.max(10, UniversePurpurConfig.licenseHeartbeatMinutes);
+        int interval = Math.max(1, UniversePurpurConfig.licenseHeartbeatMinutes > 0 ? UniversePurpurConfig.licenseHeartbeatMinutes : 5);
         heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "SCON-License-Heartbeat");
             t.setDaemon(true);
@@ -300,21 +302,72 @@ public final class UniverseLicenseManager {
                 if (resolvedKey != null && !resolvedKey.isEmpty()) {
                     boolean ok = performVerification(resolvedKey, false);
                     if (!ok) {
-                        LOGGER.severe("[SCON Licensing] ⚠️ Remote license heartbeat failed! Reason: " + message + " (Status: " + status + ")");
-                        if (UniversePurpurConfig.licenseShutdownOnFailure) {
-                            LOGGER.severe("[SCON Licensing] License revoked or suspended. Shutting down server...");
-                            try {
-                                Bukkit.shutdown();
-                            } catch (Throwable t) {
-                                System.exit(1);
-                            }
-                        }
+                        handleLicenseFailure(status, message);
                     }
                 }
             } catch (Exception ex) {
-                LOGGER.warning("[SCON Licensing] Heartbeat check failed to reach licensing endpoint: " + ex.getMessage());
+                System.err.println("\u001B[1;33m[SCON Licensing] Aviso: Error al verificar heartbeat con licences.scon.host: " + ex.getMessage() + "\u001B[0m");
             }
         }, interval, interval, TimeUnit.MINUTES);
+    }
+
+    /**
+     * Triggered when a license is suspended, expired, or revoked during server runtime.
+     * Kicks all connected players and immediately shuts down the server.
+     */
+    public static void handleLicenseFailure(String reason, String detailedMsg) {
+        isValid = false;
+
+        System.out.println();
+        System.out.println("\u001B[1;31m================================================================================");
+        System.out.println("  [SCON Licensing] ALERTA CRITICA: LICENCIA SUSPENDIDA O EXPIRADA");
+        System.out.println("================================================================================\u001B[0m");
+        System.out.println(" \u001B[1;31m[ERROR]\u001B[0m \u001B[1;37mLa licencia ha sido revocada, suspendida o ha expirado en SCON.\u001B[0m");
+        System.out.println(" \u001B[1;33m  Estado  :\u001B[0m \u001B[1;31m[" + reason + "]\u001B[0m");
+        System.out.println(" \u001B[1;33m  Motivo  :\u001B[0m \u001B[0;37m" + detailedMsg + "\u001B[0m");
+        System.out.println(" \u001B[1;33m  Accion  :\u001B[0m \u001B[1;31mDesconectando jugadores y cerrando el servidor de inmediato.\u001B[0m");
+        System.out.println("\u001B[1;31m================================================================================\u001B[0m");
+        System.out.println();
+        System.out.flush();
+
+        // 1. Kick online players
+        try {
+            if (Bukkit.getServer() != null) {
+                Component kickMsg = Component.text(
+                    "§c§l[!] SERVIDOR CERRADO POR SEGURIDAD\n\n" +
+                    "§eLa licencia de este servidor ha sido suspendida o ha expirado.\n" +
+                    "§7Estado: §f" + reason + " (" + detailedMsg + ")\n\n" +
+                    "§bGestiona tu licencia en: §fhttps://licences.scon.host"
+                );
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    try {
+                        player.kick(kickMsg);
+                    } catch (Throwable ignored) {}
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // 2. Safety Watchdog Thread: If graceful shutdown hangs, force-halt JVM in 3 seconds
+        Thread watchdog = new Thread(() -> {
+            try {
+                Thread.sleep(3000L);
+            } catch (InterruptedException ignored) {}
+            System.err.println("[SCON Licensing] Forzando detencion del proceso...");
+            Runtime.getRuntime().halt(0);
+        }, "SCON-License-Kill-Watchdog");
+        watchdog.setDaemon(true);
+        watchdog.start();
+
+        // 3. Initiate server shutdown
+        try {
+            if (Bukkit.getServer() != null) {
+                Bukkit.shutdown();
+            } else {
+                System.exit(0);
+            }
+        } catch (Throwable t) {
+            Runtime.getRuntime().halt(0);
+        }
     }
 
     private static void printSuccessBanner() {
