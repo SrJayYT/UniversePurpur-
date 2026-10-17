@@ -102,6 +102,7 @@ public final class UniverseLicenseManager {
         if (!isValid) {
             initEarly();
         }
+        registerLoginShield();
     }
 
     /**
@@ -283,14 +284,20 @@ public final class UniverseLicenseManager {
     }
 
     /**
-     * Starts background heartbeat check every X minutes.
+     * Starts background heartbeat check every 30 seconds for instant detection.
      */
     private static synchronized void startHeartbeatScheduler() {
         if (heartbeatExecutor != null && !heartbeatExecutor.isShutdown()) {
             return;
         }
 
-        int interval = Math.max(1, UniversePurpurConfig.licenseHeartbeatMinutes > 0 ? UniversePurpurConfig.licenseHeartbeatMinutes : 5);
+        int intervalSeconds = 30;
+        try {
+            if (UniversePurpurConfig.licenseHeartbeatMinutes > 0 && UniversePurpurConfig.licenseHeartbeatMinutes != 5) {
+                intervalSeconds = Math.max(10, UniversePurpurConfig.licenseHeartbeatMinutes * 60);
+            }
+        } catch (Throwable ignored) {}
+
         heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "SCON-License-Heartbeat");
             t.setDaemon(true);
@@ -308,7 +315,41 @@ public final class UniverseLicenseManager {
             } catch (Exception ex) {
                 System.err.println("\u001B[1;33m[SCON Licensing] Aviso: Error al verificar heartbeat con licences.scon.host: " + ex.getMessage() + "\u001B[0m");
             }
-        }, interval, interval, TimeUnit.MINUTES);
+        }, 10, intervalSeconds, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Registers login listener to block entry if license is invalid or expired.
+     */
+    public static void registerLoginShield() {
+        try {
+            if (Bukkit.getPluginManager() != null) {
+                Bukkit.getPluginManager().registerEvents(new org.bukkit.event.Listener() {
+                    @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.LOWEST)
+                    public void onPlayerLogin(org.bukkit.event.player.AsyncPlayerPreLoginEvent event) {
+                        if (!isValid) {
+                            event.disallow(
+                                org.bukkit.event.player.AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                                Component.text("§c[!] Servidor deshabilitado: La licencia no es válida o ha sido suspendida.")
+                            );
+                            return;
+                        }
+                        if (System.currentTimeMillis() - lastCheckTimestamp > 20000L && resolvedKey != null && !resolvedKey.isEmpty()) {
+                            try {
+                                boolean ok = performVerification(resolvedKey, false);
+                                if (!ok) {
+                                    event.disallow(
+                                        org.bukkit.event.player.AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                                        Component.text("§c[!] Licencia suspendida o expirada en SCON Licensing.")
+                                    );
+                                    handleLicenseFailure(status, message);
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                }, new org.purpurmc.purpur.util.MinecraftInternalPlugin());
+            }
+        } catch (Throwable ignored) {}
     }
 
     /**
@@ -347,10 +388,10 @@ public final class UniverseLicenseManager {
             }
         } catch (Throwable ignored) {}
 
-        // 2. Safety Watchdog Thread: If graceful shutdown hangs, force-halt JVM in 3 seconds
+        // 2. Safety Watchdog Thread: If graceful shutdown hangs, force-halt JVM in 1.5 seconds
         Thread watchdog = new Thread(() -> {
             try {
-                Thread.sleep(3000L);
+                Thread.sleep(1500L);
             } catch (InterruptedException ignored) {}
             System.err.println("[SCON Licensing] Forzando detencion del proceso...");
             Runtime.getRuntime().halt(0);
