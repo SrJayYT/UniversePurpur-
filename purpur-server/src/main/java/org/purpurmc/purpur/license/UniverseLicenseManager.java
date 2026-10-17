@@ -52,48 +52,41 @@ public final class UniverseLicenseManager {
     private UniverseLicenseManager() {}
 
     /**
-     * Initializes and validates the license at server startup.
+     * Early bootstrap validation before Minecraft initializes.
+     * Guarantees the server does not start if the license is invalid.
      */
-    public static synchronized void init(File serverRootDir) {
+    public static synchronized void initEarly() {
+        if (isValid) return;
+
         resolveLicenseKey();
 
-        LOGGER.info("[SCON Licensing] Initializing SCON License Verification Engine...");
-
         if (resolvedKey == null || resolvedKey.trim().isEmpty() || resolvedKey.contains("XXXX-XXXX")) {
-            printFailureBanner("MISSING_KEY", "No license key provided in universe-purpur.yml or startup parameters.");
-            if (UniversePurpurConfig.licenseShutdownOnFailure) {
-                LOGGER.severe("[SCON Licensing] Server startup halted: UniversePurpur requires an active license key to run.");
-                System.exit(1);
-            }
+            printFailureBanner("MISSING_KEY", "No se detectó ninguna clave de licencia configurada.");
+            System.exit(1);
             return;
         }
 
-        // Attempt verification with retries for resilience
+        LOGGER.info("[SCON Licensing] Verificando clave de licencia con SCON Security Network...");
+
         boolean verified = false;
         int maxRetries = 3;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                LOGGER.info("[SCON Licensing] Validating license with https://licences.scon.host (Attempt " + attempt + "/" + maxRetries + ")...");
                 verified = performVerification(resolvedKey, true);
-                if (verified) {
-                    break;
-                }
+                if (verified) break;
             } catch (Exception ex) {
-                LOGGER.log(Level.WARNING, "[SCON Licensing] Verification attempt " + attempt + " failed: " + ex.getMessage());
+                LOGGER.log(Level.WARNING, "[SCON Licensing] Intento " + attempt + "/" + maxRetries + " fallido: " + ex.getMessage());
                 if (attempt < maxRetries) {
                     try {
-                        Thread.sleep(2000L);
+                        Thread.sleep(1500L);
                     } catch (InterruptedException ignored) {}
                 }
             }
         }
 
         if (!verified) {
-            printFailureBanner(status, message.isEmpty() ? "Unable to authenticate license with SCON license network." : message);
-            if (UniversePurpurConfig.licenseShutdownOnFailure) {
-                LOGGER.severe("[SCON Licensing] Server startup halted: Invalid license authorization.");
-                System.exit(1);
-            }
+            printFailureBanner(status, (message != null && !message.isEmpty()) ? message : "Licencia no autorizada o rechazada por el servidor.");
+            System.exit(1);
             return;
         }
 
@@ -101,10 +94,20 @@ public final class UniverseLicenseManager {
     }
 
     /**
+     * Compatibility init hook for UniversePurpurConfig.
+     */
+    public static synchronized void init(File serverRootDir) {
+        if (!isValid) {
+            initEarly();
+        }
+    }
+
+    /**
      * Resolves license key prioritizing:
      * 1. Environment variables (Pterodactyl / Pelican / Docker: LICENSE_KEY)
      * 2. JVM system properties (-Dlicense.key)
-     * 3. Configuration file (universe-purpur.yml -> global.license.key)
+     * 3. Direct read from universe-purpur.yml on disk
+     * 4. UniversePurpurConfig memory cache
      */
     public static String resolveLicenseKey() {
         // 1. Primary: Environment Variables (Pterodactyl Startup Variables / Docker)
@@ -118,7 +121,36 @@ public final class UniverseLicenseManager {
         if (isNullOrEmpty(key)) key = System.getProperty("universe.license");
         if (isNullOrEmpty(key)) key = System.getProperty("scon.license");
 
-        // 3. Fallback: universe-purpur.yml configuration file
+        // 3. Fallback: Direct read from universe-purpur.yml on disk
+        if (isNullOrEmpty(key)) {
+            File configFile = new File("universe-purpur.yml");
+            if (configFile.exists() && configFile.canRead()) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(new java.io.FileInputStream(configFile), StandardCharsets.UTF_8))) {
+                    String line;
+                    boolean inLicenseBlock = false;
+                    while ((line = reader.readLine()) != null) {
+                        String trimmed = line.trim();
+                        if (trimmed.startsWith("license:")) {
+                            inLicenseBlock = true;
+                            continue;
+                        }
+                        if (inLicenseBlock) {
+                            if (trimmed.startsWith("key:")) {
+                                String[] parts = trimmed.split(":", 2);
+                                if (parts.length > 1) {
+                                    key = parts[1].trim().replace("\"", "").replace("'", "");
+                                }
+                                break;
+                            } else if (!trimmed.startsWith("#") && !line.startsWith(" ") && !line.startsWith("\t")) {
+                                inLicenseBlock = false;
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+
+        // 4. Fallback: UniversePurpurConfig if already loaded
         if (isNullOrEmpty(key) && UniversePurpurConfig.licenseKey != null) {
             key = UniversePurpurConfig.licenseKey;
         }
@@ -299,25 +331,35 @@ public final class UniverseLicenseManager {
 
     private static void printFailureBanner(String statusReason, String detailedMsg) {
         String masked = maskKey(resolvedKey);
-        System.err.println("\u001B[31m===============================================================================");
-        System.err.println("  [SCON Licensing] ❌ ERROR CRÍTICO: LICENCIA DE UNIVERSEPURPUR NO VÁLIDA");
-        System.err.println("===============================================================================\u001B[0m");
-        System.err.println("  Clave Configurada : " + (masked.isEmpty() ? "(Ninguna / Vacía)" : masked));
-        System.err.println("  Estado Servidor   : \u001B[31m" + statusReason + "\u001B[0m");
-        System.err.println("  Mensaje           : \u001B[33m" + detailedMsg + "\u001B[0m");
+        System.err.println("\n\u001B[1;31m╔══════════════════════════════════════════════════════════════════════════════════╗");
+        System.err.println("║          ❌  UNIVERSEPURPUR TITAN ENGINE : ACTIVACIÓN OBLIGATORIA                ║");
+        System.err.println("╚══════════════════════════════════════════════════════════════════════════════════╝\u001B[0m");
         System.err.println("");
-        System.err.println("  Para activar tu servidor UniversePurpur, configura tu clave en:");
-        System.err.println("   1. En el panel (Pterodactyl/Pelican) pestaña 'Startup' -> Variable de Entorno:");
-        System.err.println("        LICENSE_KEY=\"SCON-XXXX-XXXX-XXXX-XXXX\"");
-        System.err.println("   2. O en tu archivo de configuración universe-purpur.yml:");
-        System.err.println("        global:");
-        System.err.println("          license:");
-        System.err.println("            key: \"SCON-XXXX-XXXX-XXXX-XXXX\"");
-        System.err.println("   3. O mediante variable de entorno en tu terminal / Docker:");
-        System.err.println("        export LICENSE_KEY=\"SCON-XXXX-...\"");
+        System.err.println(" \u001B[1;31m✖ ERROR:\u001B[0m \u001B[1;37mNo se detectó una licencia válida para iniciar el servidor.\u001B[0m");
+        System.err.println(" \u001B[1;33mEstado     :\u001B[0m \u001B[1;31m[" + statusReason + "]\u001B[0m");
+        System.err.println(" \u001B[1;33mMotivo     :\u001B[0m \u001B[1;37m" + detailedMsg + "\u001B[0m");
+        System.err.println(" \u001B[1;33mClave usada:\u001B[0m \u001B[1;36m" + (masked.isEmpty() ? "(Ninguna / Vacía)" : masked) + "\u001B[0m");
         System.err.println("");
-        System.err.println("  Gestiona tus licencias en: \u001B[34mhttps://licences.scon.host\u001B[0m");
-        System.err.println("\u001B[31m===============================================================================\u001B[0m");
+        System.err.println("\u001B[1;36m──────────────────────────────────────────────────────────────────────────────────\u001B[0m");
+        System.err.println(" \u001B[1;32m👉 CÓMO COLOCAR TU CLAVE DE LICENCIA FÁCILMENTE:\u001B[0m");
+        System.err.println("");
+        System.err.println("  \u001B[1;37m1. En tu panel de hosting (Pterodactyl / Pelican):\u001B[0m");
+        System.err.println("     \u001B[1;33m» Entra a la pestaña \"Startup\" (Parámetros de Inicio).\u001B[0m");
+        System.err.println("     \u001B[1;33m» Busca la variable de entorno:\u001B[0m \u001B[1;32mLICENSE_KEY\u001B[0m");
+        System.err.println("     \u001B[1;33m» Pega tu clave de licencia y pulsa \"Start\" / Iniciar.\u001B[0m");
+        System.err.println("");
+        System.err.println("  \u001B[1;37m2. O en tu archivo de configuración (universe-purpur.yml):\u001B[0m");
+        System.err.println("     \u001B[0;36mglobal:\u001B[0m");
+        System.err.println("       \u001B[0;36mlicense:\u001B[0m");
+        System.err.println("         \u001B[1;32mkey: \"SCON-XXXX-XXXX-XXXX-XXXX\"\u001B[0m");
+        System.err.println("");
+        System.err.println("  \u001B[1;37m3. O como Variable de Entorno en tu terminal / Docker:\u001B[0m");
+        System.err.println("     \u001B[1;33mexport LICENSE_KEY=\"SCON-XXXX-XXXX-XXXX-XXXX\"\u001B[0m");
+        System.err.println("\u001B[1;36m──────────────────────────────────────────────────────────────────────────────────\u001B[0m");
+        System.err.println(" \u001B[1;35m🌐 Gestiona tus licencias en el portal web: \u001B[1;34mhttps://licences.scon.host\u001B[0m");
+        System.err.println(" \u001B[1;31m⛔ El servidor se ha detenido de forma segura (Arranque cancelado).\u001B[0m");
+        System.err.println("\u001B[1;31m══════════════════════════════════════════════════════════════════════════════════\u001B[0m\n");
+        System.err.flush();
     }
 
     public static String maskKey(String key) {

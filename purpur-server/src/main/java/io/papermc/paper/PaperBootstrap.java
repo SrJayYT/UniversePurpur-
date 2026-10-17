@@ -41,6 +41,9 @@ public final class PaperBootstrap {
             ));
         }
 
+        // Early SCON License Validation: halts startup immediately if missing or invalid
+        org.purpurmc.purpur.license.UniverseLicenseManager.initEarly();
+
         net.minecraft.server.Main.main(options);
     }
 }
