@@ -61,12 +61,12 @@ public final class UniverseLicenseManager {
         resolveLicenseKey();
 
         if (resolvedKey == null || resolvedKey.trim().isEmpty() || resolvedKey.contains("XXXX-XXXX")) {
-            printFailureBanner("MISSING_KEY", "No se detectó ninguna clave de licencia configurada.");
-            System.exit(1);
+            printFailureBanner("MISSING_KEY", "No se detecto ninguna clave de licencia configurada.");
+            System.exit(0);
             return;
         }
 
-        LOGGER.info("[SCON Licensing] Verificando clave de licencia con SCON Security Network...");
+        System.out.println("\u001B[1;36m[SCON Licensing] Verificando clave de licencia con https://licences.scon.host...\u001B[0m");
 
         boolean verified = false;
         int maxRetries = 3;
@@ -75,7 +75,7 @@ public final class UniverseLicenseManager {
                 verified = performVerification(resolvedKey, true);
                 if (verified) break;
             } catch (Exception ex) {
-                LOGGER.log(Level.WARNING, "[SCON Licensing] Intento " + attempt + "/" + maxRetries + " fallido: " + ex.getMessage());
+                System.err.println("\u001B[1;33m[SCON Licensing] Intento " + attempt + "/" + maxRetries + " fallido: " + ex.getMessage() + "\u001B[0m");
                 if (attempt < maxRetries) {
                     try {
                         Thread.sleep(1500L);
@@ -86,7 +86,7 @@ public final class UniverseLicenseManager {
 
         if (!verified) {
             printFailureBanner(status, (message != null && !message.isEmpty()) ? message : "Licencia no autorizada o rechazada por el servidor.");
-            System.exit(1);
+            System.exit(0);
             return;
         }
 
@@ -157,6 +157,9 @@ public final class UniverseLicenseManager {
 
         if (key != null) {
             key = key.trim();
+            if (key.contains("{{") || key.contains("XXXX-XXXX")) {
+                key = "";
+            }
         } else {
             key = "";
         }
@@ -316,54 +319,63 @@ public final class UniverseLicenseManager {
 
     private static void printSuccessBanner() {
         String masked = maskKey(resolvedKey);
-        System.out.println("\u001B[32m===============================================================================");
-        System.out.println("  SCON LICENSING » UNIVERSEPURPUR TITAN ENGINE AUTORIZADO CON ÉXITO");
-        System.out.println("===============================================================================\u001B[0m");
-        System.out.println("  Clave de Licencia : \u001B[36m" + masked + "\u001B[0m (\u001B[32m" + status + "\u001B[0m)");
-        System.out.println("  Producto          : \u001B[35m" + UniversePurpurConfig.licenseProductName + "\u001B[0m (Minecraft Java / Purpur)");
-        System.out.println("  Cliente Discord ID: \u001B[33m" + customerDiscordId + "\u001B[0m");
-        System.out.println("  Etiqueta / Tag    : \u001B[37m" + licenseTag + "\u001B[0m");
-        System.out.println("  Duración          : \u001B[32m" + expiresAt + "\u001B[0m");
-        System.out.println("  IPs Vinculadas    : \u001B[36m" + boundIps.size() + " / " + maxIps + " (" + String.join(", ", boundIps) + ")\u001B[0m");
-        System.out.println("  Seguridad         : \u001B[32mHMAC-SHA256 Anti-Spoofing Criptográfico Verificado\u001B[0m");
-        System.out.println("\u001B[32m===============================================================================\u001B[0m");
+        System.out.println();
+        System.out.println("\u001B[1;32m================================================================================");
+        System.out.println("  SCON LICENSING :: UNIVERSEPURPUR TITAN ENGINE AUTORIZADO");
+        System.out.println("================================================================================\u001B[0m");
+        System.out.println("  \u001B[1;37mClave de Licencia :\u001B[0m \u001B[1;36m" + masked + "\u001B[0m (\u001B[1;32m" + status + "\u001B[0m)");
+        System.out.println("  \u001B[1;37mProducto          :\u001B[0m \u001B[1;35m" + (UniversePurpurConfig.licenseProductName != null ? UniversePurpurConfig.licenseProductName : "UniversePurpur") + "\u001B[0m (Minecraft Java / Purpur)");
+        System.out.println("  \u001B[1;37mCliente Discord ID:\u001B[0m \u001B[1;33m" + customerDiscordId + "\u001B[0m");
+        System.out.println("  \u001B[1;37mEtiqueta / Tag    :\u001B[0m \u001B[1;37m" + licenseTag + "\u001B[0m");
+        System.out.println("  \u001B[1;37mDuración          :\u001B[0m \u001B[1;32m" + expiresAt + "\u001B[0m");
+        System.out.println("  \u001B[1;37mIPs Vinculadas    :\u001B[0m \u001B[1;36m" + boundIps.size() + " / " + maxIps + " (" + String.join(", ", boundIps) + ")\u001B[0m");
+        System.out.println("  \u001B[1;37mSeguridad         :\u001B[0m \u001B[1;32mHMAC-SHA256 Anti-Spoofing Criptográfico Verificado\u001B[0m");
+        System.out.println("\u001B[1;32m================================================================================\u001B[0m");
+        System.out.println();
+        System.out.flush();
     }
 
     private static void printFailureBanner(String statusReason, String detailedMsg) {
         String masked = maskKey(resolvedKey);
-        System.err.println("\n\u001B[1;31m╔══════════════════════════════════════════════════════════════════════════════════╗");
-        System.err.println("║          ❌  UNIVERSEPURPUR TITAN ENGINE : ACTIVACIÓN OBLIGATORIA                ║");
-        System.err.println("╚══════════════════════════════════════════════════════════════════════════════════╝\u001B[0m");
-        System.err.println("");
-        System.err.println(" \u001B[1;31m✖ ERROR:\u001B[0m \u001B[1;37mNo se detectó una licencia válida para iniciar el servidor.\u001B[0m");
-        System.err.println(" \u001B[1;33mEstado     :\u001B[0m \u001B[1;31m[" + statusReason + "]\u001B[0m");
-        System.err.println(" \u001B[1;33mMotivo     :\u001B[0m \u001B[1;37m" + detailedMsg + "\u001B[0m");
-        System.err.println(" \u001B[1;33mClave usada:\u001B[0m \u001B[1;36m" + (masked.isEmpty() ? "(Ninguna / Vacía)" : masked) + "\u001B[0m");
-        System.err.println("");
-        System.err.println("\u001B[1;36m──────────────────────────────────────────────────────────────────────────────────\u001B[0m");
-        System.err.println(" \u001B[1;32m👉 CÓMO COLOCAR TU CLAVE DE LICENCIA FÁCILMENTE:\u001B[0m");
-        System.err.println("");
-        System.err.println("  \u001B[1;37m1. En tu panel de hosting (Pterodactyl / Pelican):\u001B[0m");
-        System.err.println("     \u001B[1;33m» Entra a la pestaña \"Startup\" (Parámetros de Inicio).\u001B[0m");
-        System.err.println("     \u001B[1;33m» Busca la variable de entorno:\u001B[0m \u001B[1;32mLICENSE_KEY\u001B[0m");
-        System.err.println("     \u001B[1;33m» Pega tu clave de licencia y pulsa \"Start\" / Iniciar.\u001B[0m");
-        System.err.println("");
-        System.err.println("  \u001B[1;37m2. O en tu archivo de configuración (universe-purpur.yml):\u001B[0m");
-        System.err.println("     \u001B[0;36mglobal:\u001B[0m");
-        System.err.println("       \u001B[0;36mlicense:\u001B[0m");
-        System.err.println("         \u001B[1;32mkey: \"SCON-XXXX-XXXX-XXXX-XXXX\"\u001B[0m");
-        System.err.println("");
-        System.err.println("  \u001B[1;37m3. O como Variable de Entorno en tu terminal / Docker:\u001B[0m");
-        System.err.println("     \u001B[1;33mexport LICENSE_KEY=\"SCON-XXXX-XXXX-XXXX-XXXX\"\u001B[0m");
-        System.err.println("\u001B[1;36m──────────────────────────────────────────────────────────────────────────────────\u001B[0m");
-        System.err.println(" \u001B[1;35m🌐 Gestiona tus licencias en el portal web: \u001B[1;34mhttps://licences.scon.host\u001B[0m");
-        System.err.println(" \u001B[1;31m⛔ El servidor se ha detenido de forma segura (Arranque cancelado).\u001B[0m");
-        System.err.println("\u001B[1;31m══════════════════════════════════════════════════════════════════════════════════\u001B[0m\n");
-        System.err.flush();
+        System.out.println();
+        System.out.println("\u001B[1;31m================================================================================");
+        System.out.println("  UNIVERSEPURPUR TITAN ENGINE :: ACTIVACION REQUERIDA");
+        System.out.println("================================================================================\u001B[0m");
+        System.out.println();
+        System.out.println(" \u001B[1;31m[ERROR]\u001B[0m \u001B[1;37mNo se detecto una licencia valida para iniciar este servidor.\u001B[0m");
+        System.out.println(" \u001B[1;33m  Estado     :\u001B[0m \u001B[1;31m[" + statusReason + "]\u001B[0m");
+        System.out.println(" \u001B[1;33m  Motivo     :\u001B[0m \u001B[0;37m" + detailedMsg + "\u001B[0m");
+        System.out.println(" \u001B[1;33m  Clave      :\u001B[0m \u001B[1;36m" + masked + "\u001B[0m");
+        System.out.println();
+        System.out.println("\u001B[0;90m--------------------------------------------------------------------------------\u001B[0m");
+        System.out.println(" \u001B[1;32mPASOS PARA ACTIVAR TU SERVIDOR:\u001B[0m");
+        System.out.println();
+        System.out.println("  \u001B[1;37m1. Panel de Hosting (Pterodactyl / Pelican):\u001B[0m");
+        System.out.println("     \u001B[0;37m- Ve a la pestana \u001B[1;33mStartup\u001B[0;37m (Parametros de Inicio).\u001B[0m");
+        System.out.println("     \u001B[0;37m- En la variable \u001B[1;32mLICENSE_KEY\u001B[0;37m, introduce tu clave de SCON.\u001B[0m");
+        System.out.println("     \u001B[0;37m- Guarda e inicia nuevamente tu servidor.\u001B[0m");
+        System.out.println();
+        System.out.println("  \u001B[1;37m2. O en tu archivo de configuracion (universe-purpur.yml):\u001B[0m");
+        System.out.println("     \u001B[0;36mglobal:\u001B[0m");
+        System.out.println("       \u001B[0;36mlicense:\u001B[0m");
+        System.out.println("         \u001B[1;32mkey: \"SCON-XXXX-XXXX-XXXX-XXXX\"\u001B[0m");
+        System.out.println();
+        System.out.println("  \u001B[1;37m3. O como Variable de Entorno en Linux / Docker:\u001B[0m");
+        System.out.println("     \u001B[1;33mexport LICENSE_KEY=\"SCON-XXXX-XXXX-XXXX-XXXX\"\u001B[0m");
+        System.out.println("\u001B[0;90m--------------------------------------------------------------------------------\u001B[0m");
+        System.out.println(" \u001B[1;35mPanel de Licencias:\u001B[0m \u001B[1;34mhttps://licences.scon.host\u001B[0m");
+        System.out.println(" \u001B[1;31mArranque detenido de forma segura. Servidor apagado.\u001B[0m");
+        System.out.println("\u001B[1;31m================================================================================\u001B[0m");
+        System.out.println();
+        System.out.flush();
     }
 
     public static String maskKey(String key) {
-        if (key == null || key.length() < 9) return "•••••••••••••••••••••";
+        if (key == null || key.trim().isEmpty() || key.contains("XXXX-XXXX") || key.contains("{{")) {
+            return "(No configurada / Vacia)";
+        }
+        key = key.trim();
+        if (key.length() < 9) return "•••••••••••••••••••••";
         return key.substring(0, 9) + "••••-••••-" + (key.length() > 4 ? key.substring(key.length() - 4) : "••••");
     }
 
