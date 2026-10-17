@@ -76,6 +76,9 @@ public final class UniverseLicenseManager {
             try {
                 verified = performVerification(resolvedKey, true);
                 if (verified) break;
+                if (status != null && !status.equals("UNCHECKED") && !status.equals("EMPTY_RESPONSE") && !status.equals("MALFORMED_RESPONSE")) {
+                    break;
+                }
             } catch (Exception ex) {
                 System.err.println("\u001B[1;33m[SCON Licensing] Intento " + attempt + "/" + maxRetries + " fallido: " + ex.getMessage() + "\u001B[0m");
                 if (attempt < maxRetries) {
@@ -284,17 +287,17 @@ public final class UniverseLicenseManager {
     }
 
     /**
-     * Starts background heartbeat check every 30 seconds for instant detection.
+     * Starts background heartbeat check every 10 seconds for rapid detection.
      */
     private static synchronized void startHeartbeatScheduler() {
         if (heartbeatExecutor != null && !heartbeatExecutor.isShutdown()) {
             return;
         }
 
-        int intervalSeconds = 30;
+        int intervalSeconds = 10;
         try {
             if (UniversePurpurConfig.licenseHeartbeatMinutes > 0 && UniversePurpurConfig.licenseHeartbeatMinutes != 5) {
-                intervalSeconds = Math.max(10, UniversePurpurConfig.licenseHeartbeatMinutes * 60);
+                intervalSeconds = Math.max(5, UniversePurpurConfig.licenseHeartbeatMinutes * 60);
             }
         } catch (Throwable ignored) {}
 
@@ -334,7 +337,7 @@ public final class UniverseLicenseManager {
                             );
                             return;
                         }
-                        if (System.currentTimeMillis() - lastCheckTimestamp > 20000L && resolvedKey != null && !resolvedKey.isEmpty()) {
+                        if (System.currentTimeMillis() - lastCheckTimestamp > 10000L && resolvedKey != null && !resolvedKey.isEmpty()) {
                             try {
                                 boolean ok = performVerification(resolvedKey, false);
                                 if (!ok) {
@@ -357,58 +360,84 @@ public final class UniverseLicenseManager {
      * Kicks all connected players and immediately shuts down the server.
      */
     public static void handleLicenseFailure(String reason, String detailedMsg) {
+        if (!isValid && heartbeatExecutor != null && heartbeatExecutor.isShutdown()) {
+            return;
+        }
         isValid = false;
 
-        System.out.println();
-        System.out.println("\u001B[1;31m================================================================================");
-        System.out.println("  [SCON Licensing] ALERTA CRITICA: LICENCIA SUSPENDIDA O EXPIRADA");
-        System.out.println("================================================================================\u001B[0m");
-        System.out.println(" \u001B[1;31m[ERROR]\u001B[0m \u001B[1;37mLa licencia ha sido revocada, suspendida o ha expirado en SCON.\u001B[0m");
-        System.out.println(" \u001B[1;33m  Estado  :\u001B[0m \u001B[1;31m[" + reason + "]\u001B[0m");
-        System.out.println(" \u001B[1;33m  Motivo  :\u001B[0m \u001B[0;37m" + detailedMsg + "\u001B[0m");
-        System.out.println(" \u001B[1;33m  Accion  :\u001B[0m \u001B[1;31mDesconectando jugadores y cerrando el servidor de inmediato.\u001B[0m");
-        System.out.println("\u001B[1;31m================================================================================\u001B[0m");
-        System.out.println();
+        if (heartbeatExecutor != null) {
+            try {
+                heartbeatExecutor.shutdownNow();
+            } catch (Throwable ignored) {}
+        }
+
+        String banner = "\n\u001B[1;31m================================================================================\n" +
+                        "  [SCON Licensing] ALERTA CRITICA: LICENCIA SUSPENDIDA O EXPIRADA\n" +
+                        "================================================================================\n" +
+                        " [ERROR] La licencia ha sido revocada, suspendida o ha expirado en SCON.\n" +
+                        "   Estado  : [" + reason + "]\n" +
+                        "   Motivo  : " + detailedMsg + "\n" +
+                        "   Accion  : Desconectando jugadores y cerrando el servidor de inmediato.\n" +
+                        "================================================================================\u001B[0m\n";
+        System.out.println(banner);
         System.out.flush();
 
-        // 1. Kick online players
         try {
-            if (Bukkit.getServer() != null) {
-                Component kickMsg = Component.text(
-                    "§c§l[!] SERVIDOR CERRADO POR SEGURIDAD\n\n" +
-                    "§eLa licencia de este servidor ha sido suspendida o ha expirado.\n" +
-                    "§7Estado: §f" + reason + " (" + detailedMsg + ")\n\n" +
-                    "§bGestiona tu licencia en: §fhttps://licences.scon.host"
-                );
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    try {
-                        player.kick(kickMsg);
-                    } catch (Throwable ignored) {}
+            LOGGER.severe("[SCON Licensing] ALERTA CRITICA: Licencia [" + reason + "] - " + detailedMsg + " -> Apagando servidor...");
+        } catch (Throwable ignored) {}
+
+        Runnable shutdownAction = () -> {
+            // 1. Kick online players on the main thread (avoids AsyncCatcher exception)
+            try {
+                if (Bukkit.getServer() != null) {
+                    Component kickMsg = Component.text(
+                        "§c§l[!] SERVIDOR CERRADO POR SEGURIDAD\n\n" +
+                        "§eLa licencia de este servidor ha sido suspendida o ha expirado.\n" +
+                        "§7Estado: §f" + reason + " (" + detailedMsg + ")\n\n" +
+                        "§bGestiona tu licencia en: §fhttps://licences.scon.host"
+                    );
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        try {
+                            player.kick(kickMsg);
+                        } catch (Throwable ignored) {}
+                    }
                 }
+            } catch (Throwable ignored) {}
+
+            // 2. Clean server shutdown
+            try {
+                if (Bukkit.getServer() != null) {
+                    Bukkit.shutdown();
+                } else {
+                    System.exit(0);
+                }
+            } catch (Throwable t) {
+                System.exit(0);
+            }
+        };
+
+        boolean scheduled = false;
+        try {
+            if (Bukkit.getServer() != null && Bukkit.getPluginManager() != null) {
+                Bukkit.getScheduler().runTask(new org.purpurmc.purpur.util.MinecraftInternalPlugin(), shutdownAction);
+                scheduled = true;
             }
         } catch (Throwable ignored) {}
 
-        // 2. Safety Watchdog Thread: If graceful shutdown hangs, force-halt JVM in 1.5 seconds
+        if (!scheduled) {
+            new Thread(shutdownAction, "SCON-Shutdown-Thread").start();
+        }
+
+        // Safety Watchdog Thread: If graceful shutdown hangs after 8 seconds, force clean exit
         Thread watchdog = new Thread(() -> {
             try {
-                Thread.sleep(1500L);
+                Thread.sleep(8000L);
             } catch (InterruptedException ignored) {}
-            System.err.println("[SCON Licensing] Forzando detencion del proceso...");
-            Runtime.getRuntime().halt(0);
+            System.err.println("[SCON Licensing] Timeout de apagado alcanzado (8s). Forzando System.exit(0)...");
+            System.exit(0);
         }, "SCON-License-Kill-Watchdog");
         watchdog.setDaemon(true);
         watchdog.start();
-
-        // 3. Initiate server shutdown
-        try {
-            if (Bukkit.getServer() != null) {
-                Bukkit.shutdown();
-            } else {
-                System.exit(0);
-            }
-        } catch (Throwable t) {
-            Runtime.getRuntime().halt(0);
-        }
     }
 
     private static void printSuccessBanner() {
