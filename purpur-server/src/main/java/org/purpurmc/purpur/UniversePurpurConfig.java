@@ -142,6 +142,14 @@ public final class UniversePurpurConfig {
     public static boolean multiVersionAutoDeploy = true;
     public static String multiVersionRange = "1.21.x - 1.26.x (Full Range)";
 
+    // --- SCON Licensing & Protection System (https://licences.scon.host) ---
+    public static boolean licenseEnabled = true;
+    public static String licenseKey = "";
+    public static String licenseProductName = "UniversePurpur";
+    public static String licenseServerUrl = "https://licences.scon.host/api/v1/license/verify";
+    public static boolean licenseShutdownOnFailure = true;
+    public static int licenseHeartbeatMinutes = 60;
+
     private UniversePurpurConfig() {}
 
     public static void init(File serverRootDir) {
@@ -170,6 +178,9 @@ public final class UniversePurpurConfig {
         optimizeServerProperties(serverRootDir);
         registerWorldListener();
         try {
+            if (licenseEnabled) {
+                org.purpurmc.purpur.license.UniverseLicenseManager.init(serverRootDir);
+            }
             org.purpurmc.purpur.multiversion.UniverseMultiVersionManager.init(serverRootDir);
             org.purpurmc.purpur.multiversion.UniverseGeyserManager.init(serverRootDir);
             org.purpurmc.purpur.multiversion.UniversePlugManManager.init(serverRootDir);
@@ -754,6 +765,27 @@ public final class UniversePurpurConfig {
         multiVersionEnabled = getBoolean("global.multiversion.enabled", multiVersionEnabled);
         multiVersionAutoDeploy = getBoolean("global.multiversion.auto-deploy", multiVersionAutoDeploy);
         multiVersionRange = getString("global.multiversion.range", multiVersionRange);
+
+        // SCON License Security Engine (https://licences.scon.host)
+        licenseEnabled = getBoolean("global.license.enabled", getBoolean("license.enabled", licenseEnabled));
+        licenseKey = getString("global.license.key", getString("license.key", licenseKey));
+        licenseProductName = getString("global.license.product-name", getString("license.product-name", licenseProductName));
+        licenseServerUrl = getString("global.license.server-url", getString("license.server-url", licenseServerUrl));
+        licenseShutdownOnFailure = getBoolean("global.license.shutdown-on-failure", getBoolean("license.shutdown-on-failure", licenseShutdownOnFailure));
+        licenseHeartbeatMinutes = getInt("global.license.heartbeat-interval-minutes", getInt("license.heartbeat-interval-minutes", licenseHeartbeatMinutes));
+
+        // Startup flags & environment variable overrides for License
+        String envLicenseKey = System.getenv("LICENSE_KEY");
+        if (envLicenseKey == null || envLicenseKey.isEmpty()) envLicenseKey = System.getenv("UNIVERSE_PURPUR_LICENSE");
+        if (envLicenseKey == null || envLicenseKey.isEmpty()) envLicenseKey = System.getenv("UNIVERSE_LICENSE");
+        if (envLicenseKey == null || envLicenseKey.isEmpty()) envLicenseKey = System.getenv("SCON_LICENSE_KEY");
+        if (envLicenseKey == null || envLicenseKey.isEmpty()) envLicenseKey = System.getProperty("license.key");
+        if (envLicenseKey == null || envLicenseKey.isEmpty()) envLicenseKey = System.getProperty("universe.license");
+        if (envLicenseKey == null || envLicenseKey.isEmpty()) envLicenseKey = System.getProperty("scon.license");
+
+        if (envLicenseKey != null && !envLicenseKey.trim().isEmpty()) {
+            licenseKey = envLicenseKey.trim();
+        }
     }
 
     public static void updateBranding(String title, String desc, String logo, String favicon, String ip, String discord) {

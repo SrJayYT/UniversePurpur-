@@ -31,7 +31,7 @@ import org.purpurmc.purpur.task.UniverseMemoryGovernor;
  */
 public class UniversePurpurCommand extends Command {
 
-    private static final List<String> SUBCOMMANDS = Arrays.asList("status", "stats", "memory", "profile", "version", "help");
+    private static final List<String> SUBCOMMANDS = Arrays.asList("status", "stats", "memory", "profile", "version", "license", "help");
     private static final List<String> PROFILES = Arrays.asList(
             "ultra-low-ram-cpu",
             "extreme-potato-cpu",
@@ -45,7 +45,7 @@ public class UniversePurpurCommand extends Command {
     public UniversePurpurCommand(String name) {
         super(name);
         this.description = "Comando principal y telemetría avanzada de UniversePurpur Titan Engine";
-        this.usageMessage = "/universepurpur <status|stats|memory|profile|version|help>";
+        this.usageMessage = "/universepurpur <status|stats|memory|profile|version|license|help>";
         this.setAliases(Arrays.asList("up", "universe", "upurpur"));
         this.setPermission("universepurpur.command");
     }
@@ -68,6 +68,7 @@ public class UniversePurpurCommand extends Command {
             case "memory", "mem", "ram" -> handleMemory(sender, args);
             case "profile" -> handleProfile(sender, args);
             case "version", "ver", "about" -> sendVersion(sender);
+            case "license", "licencia" -> handleLicense(sender, args);
             default -> {
                 sender.sendMessage(Component.text("Subcomando desconocido: '", NamedTextColor.RED)
                         .append(Component.text(args[0], NamedTextColor.YELLOW))
@@ -93,6 +94,7 @@ public class UniversePurpurCommand extends Command {
         addHelpLine(sender, "/universepurpur memory [trim]", "Monitorea la memoria RAM o ejecuta una poda proactiva de caché.");
         addHelpLine(sender, "/universepurpur profile [perfil]", "Consulta o cambia el preset de rendimiento en caliente.");
         addHelpLine(sender, "/universepurpur version", "Muestra la versión de UniversePurpur y autoría de DevPapo.");
+        addHelpLine(sender, "/universepurpur license", "Muestra el estado de autenticación y licencia SCON.");
         addHelpLine(sender, "/tps", "Alias rápido para telemetría de TPS y duración de ticks.");
 
         sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
@@ -379,6 +381,54 @@ public class UniversePurpurCommand extends Command {
             }
         }
         return Collections.emptyList();
+    }
+
+    private void handleLicense(CommandSender sender, String[] args) {
+        if (args.length >= 2 && (args[1].equalsIgnoreCase("check") || args[1].equalsIgnoreCase("verify") || args[1].equalsIgnoreCase("reload"))) {
+            sender.sendMessage(Component.text("[SCON Licensing] Re-verificando licencia con https://licences.scon.host...", NamedTextColor.AQUA));
+            Bukkit.getScheduler().runTaskAsynchronously(new org.purpurmc.purpur.util.MinecraftInternalPlugin(), () -> {
+                try {
+                    String key = org.purpurmc.purpur.license.UniverseLicenseManager.resolveLicenseKey();
+                    boolean ok = org.purpurmc.purpur.license.UniverseLicenseManager.performVerification(key, false);
+                    if (ok) {
+                        sender.sendMessage(Component.text("✔ Licencia autorizada con éxito en SCON Licensing.", NamedTextColor.GREEN));
+                    } else {
+                        sender.sendMessage(Component.text("❌ Error de validación: " + org.purpurmc.purpur.license.UniverseLicenseManager.message, NamedTextColor.RED));
+                    }
+                } catch (Exception e) {
+                    sender.sendMessage(Component.text("❌ Excepción al verificar: " + e.getMessage(), NamedTextColor.RED));
+                }
+            });
+            return;
+        }
+
+        sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
+        sender.sendMessage(Component.text("  SCON", NamedTextColor.GREEN, TextDecoration.BOLD)
+                .append(Component.text(" LICENSING » ", NamedTextColor.DARK_GREEN, TextDecoration.BOLD))
+                .append(Component.text("Estado de Licencia UniversePurpur", NamedTextColor.WHITE, TextDecoration.BOLD)));
+        sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
+
+        boolean valid = org.purpurmc.purpur.license.UniverseLicenseManager.isValid;
+        String key = org.purpurmc.purpur.license.UniverseLicenseManager.resolvedKey;
+        String masked = org.purpurmc.purpur.license.UniverseLicenseManager.maskKey(key);
+        String st = org.purpurmc.purpur.license.UniverseLicenseManager.status;
+
+        sender.sendMessage(Component.text(" • Estado        : ", NamedTextColor.GRAY)
+                .append(Component.text(st, valid ? NamedTextColor.GREEN : NamedTextColor.RED, TextDecoration.BOLD)));
+        sender.sendMessage(Component.text(" • Clave         : ", NamedTextColor.GRAY)
+                .append(Component.text(masked, NamedTextColor.AQUA)));
+        sender.sendMessage(Component.text(" • Producto      : ", NamedTextColor.GRAY)
+                .append(Component.text(UniversePurpurConfig.licenseProductName, NamedTextColor.LIGHT_PURPLE)));
+        sender.sendMessage(Component.text(" • Discord ID    : ", NamedTextColor.GRAY)
+                .append(Component.text(org.purpurmc.purpur.license.UniverseLicenseManager.customerDiscordId, NamedTextColor.YELLOW)));
+        sender.sendMessage(Component.text(" • Tag Servidor  : ", NamedTextColor.GRAY)
+                .append(Component.text(org.purpurmc.purpur.license.UniverseLicenseManager.licenseTag, NamedTextColor.WHITE)));
+        sender.sendMessage(Component.text(" • Duración      : ", NamedTextColor.GRAY)
+                .append(Component.text(org.purpurmc.purpur.license.UniverseLicenseManager.expiresAt, NamedTextColor.GREEN)));
+        sender.sendMessage(Component.text(" • Panel Central : ", NamedTextColor.GRAY)
+                .append(Component.text("https://licences.scon.host", NamedTextColor.BLUE, TextDecoration.UNDERLINED)
+                        .clickEvent(ClickEvent.openUrl("https://licences.scon.host"))));
+        sender.sendMessage(Component.text("-----------------------------------------------------", NamedTextColor.DARK_GRAY));
     }
 
     private static NamedTextColor formatTpsColor(double tps) {

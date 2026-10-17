@@ -18,6 +18,8 @@ New-Item -ItemType Directory -Path "build_universe" | Out-Null
 
 $files = @(
     "purpur-server\src\main\java\org\purpurmc\purpur\UniversePurpurConfig.java",
+    "purpur-server\src\main\java\org\purpurmc\purpur\license\UniverseLicenseManager.java",
+    "purpur-server\src\main\java\org\purpurmc\purpur\license\LicenseManager.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\multiversion\UniverseMultiVersionManager.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\multiversion\UniverseGeyserManager.java",
     "purpur-server\src\main\java\org\purpurmc\purpur\multiversion\UniversePlugManManager.java",

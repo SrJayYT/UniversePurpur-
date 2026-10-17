@@ -28,6 +28,19 @@ public final class PaperBootstrap {
             net.minecraft.SharedConstants.getCurrentVersion().getName()
         ));
 
+        String startupLicense = System.getenv("LICENSE_KEY");
+        String licenseSource = "environment variable (LICENSE_KEY)";
+        if (startupLicense == null || startupLicense.isEmpty()) {
+            startupLicense = System.getProperty("license.key");
+            licenseSource = "JVM parameter (-Dlicense.key)";
+        }
+        if (startupLicense != null && !startupLicense.trim().isEmpty()) {
+            LOGGER.info(String.format("[SCON Licensing] Detected startup license via %s: %s",
+                licenseSource,
+                org.purpurmc.purpur.license.UniverseLicenseManager.maskKey(startupLicense.trim())
+            ));
+        }
+
         net.minecraft.server.Main.main(options);
     }
 }

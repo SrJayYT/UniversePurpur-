@@ -34,6 +34,10 @@ echo " Target JAR: $JAR_FILE"
 echo " RAM Heap: ${MIN_RAM} - ${MAX_RAM} (Generational ZGC)"
 echo "==============================================================================="
 
+# SCON License Key (Environment Variable)
+# Configure your license here or leave empty to read from universe-purpur.yml
+export LICENSE_KEY="${LICENSE_KEY:-}"
+
 while true; do
     java -Xms${MIN_RAM} -Xmx${MAX_RAM} \
       -XX:+UseZGC \

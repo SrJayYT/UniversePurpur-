@@ -36,6 +36,10 @@ echo Target JAR: %JAR_FILE%
 echo Initializing JVM with Generational ZGC (Low-Latency Ultra-Throughput)...
 echo.
 
+:: SCON License Key (Environment Variable)
+:: Configure your license here or leave empty to read from universe-purpur.yml
+if "%LICENSE_KEY%"=="" set LICENSE_KEY=
+
 :run_loop
 java -Xms%MIN_RAM% -Xmx%MAX_RAM% ^
   -XX:+UseZGC ^
