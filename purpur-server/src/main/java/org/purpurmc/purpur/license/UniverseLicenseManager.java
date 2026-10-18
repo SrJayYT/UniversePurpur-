@@ -51,6 +51,10 @@ public final class UniverseLicenseManager {
     public static volatile int maxIps = 1;
     public static volatile long lastCheckTimestamp = 0L;
 
+    public static boolean isDebug() {
+        return Boolean.getBoolean("license.debug") || "true".equalsIgnoreCase(System.getenv("LICENSE_DEBUG"));
+    }
+
     private UniverseLicenseManager() {}
 
     /**
@@ -276,8 +280,8 @@ public final class UniverseLicenseManager {
 
             if (isStartup) {
                 printSuccessBanner();
-            } else {
-                LOGGER.info("[SCON Licensing] Background heartbeat OK (Status: ACTIVE, Checked at: " + new java.util.Date() + ")");
+            } else if (isDebug()) {
+                LOGGER.info("[SCON Licensing] [DEBUG] Background heartbeat OK (Status: ACTIVE, Checked at: " + new java.util.Date() + ")");
             }
             return true;
         } else {
@@ -316,7 +320,9 @@ public final class UniverseLicenseManager {
                     }
                 }
             } catch (Exception ex) {
-                System.err.println("\u001B[1;33m[SCON Licensing] Aviso: Error al verificar heartbeat con licences.scon.host: " + ex.getMessage() + "\u001B[0m");
+                if (isDebug()) {
+                    System.err.println("\u001B[1;33m[SCON Licensing] [DEBUG] Aviso al verificar heartbeat: " + ex.getMessage() + "\u001B[0m");
+                }
             }
         }, 10, intervalSeconds, TimeUnit.SECONDS);
     }
