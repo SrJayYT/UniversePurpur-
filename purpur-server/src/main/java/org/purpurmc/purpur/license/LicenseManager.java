@@ -68,7 +68,7 @@ public class LicenseManager {
             String licenseKey, 
             String productName
     ) {
-        return verifyInternal(licenseKey, productName, "1.0.2", Logger.getLogger("LicenseManager"));
+        return verifyInternal(licenseKey, productName, "1.0.3", Logger.getLogger("LicenseManager"));
     }
 
     private static CompletableFuture<ValidationResult> verifyInternal(

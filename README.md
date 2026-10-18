@@ -8,6 +8,7 @@
 
 ### *The Ultimate Hyper-Scale Minecraft Server Software (+15,000 Concurrent Players)*
 
+[![Release](https://img.shields.io/badge/Release-v1.0.3-brightgreen.svg)](https://github.com/SrJayYT/UniversePurpur-/releases/tag/v1.0.3)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 [![Java 24](https://img.shields.io/badge/Java-24%20LTS-orange.svg)](https://www.oracle.com/java/)
 [![Architecture](https://img.shields.io/badge/Target-+15,000%20Players-brightgreen.svg)]()
@@ -17,8 +18,9 @@
 **UniversePurpur** es una bifurcación de nivel empresarial de [Purpur](https://purpurmc.org) y [Paper](https://papermc.io), re-arquitecturada desde el núcleo para soportar mega-redes, lobbies masivos, minijuegos de alta concurrencia y clústeres globales con **más de 15,000 jugadores en línea simultáneos**.
 
 [Características](#-características-principales) •
+[Licenciamiento SCON](#-9-sistema-de-seguridad-y-licencias-scon-universelicensemanager) •
 [Presets](#-presets-de-alto-rendimiento) •
-[Comandos](#-comandos-administrativos) •
+[Comandos](#-comandos-administrativos-y-de-jugadores) •
 [Inicio Rápido](#-inicio-rápido) •
 [Compilación](#-compilación) •
 [Licencia](#-licencia)
@@ -91,6 +93,18 @@ Diseñado especialmente para maximizar la densidad de instancias y permitir corr
 - **Dynamic Activation of Brain (DAB) Extremo:** Ticks de IA cerebral reducidos a frecuencias de hasta 40 ticks para entidades fuera del rango de activación.
 - **Hopper Empty Throttling (16 ticks):** Tolvas vacías entran en modo de espera de 16 ticks, reduciendo radicalmente el uso de CPU generado por complejos sistemas de redstone.
 - **Cero Colisiones y Fusión de Ítems:** Colisiones desactivadas ($O(1)$ por tick) y radio de fusión de ítems en suelo ampliado a 5.0 bloques, minimizando el conteo de entidades activas.
+
+### 🔐 9. Sistema de Seguridad y Licencias SCON (`UniverseLicenseManager`)
+UniversePurpur cuenta con integración nativa con la plataforma de seguridad **[SCON Licensing](https://licences.scon.host)**:
+- **Verificación Temprana (Early Bootstrap):** Valida la autenticidad criptográfica mediante firmas HMAC-SHA256 antes de que el servidor inicialice mundos o plugins.
+- **Heartbeat Silencioso en Segundo Plano:** Chequeo periódico cada 10 segundos totalmente silencioso en producción (activable en consola con `-Dlicense.debug=true` o `LICENSE_DEBUG=true`).
+- **Defensa Activa ante Revocación o Expiración:** En caso de que la licencia expire o sea suspendida en el panel web, los jugadores conectados son expulsados de forma sincronizada en el hilo principal (`[!] SERVIDOR CERRADO POR SEGURIDAD`) y el servidor ejecuta un apagado limpio sin generar bucles de crash en Pterodactyl.
+- **Configuración Ultra-Limpia:** Solo la clave es requerida en `universe-purpur.yml`:
+  ```yaml
+  license:
+    key: "SCON-XXXX-XXXX-XXXX-XXXX"
+  ```
+  O directamente en la pestaña **Startup** de Pterodactyl mediante la variable `LICENSE_KEY`.
 
 ---
 
@@ -207,6 +221,7 @@ UniversePurpur incluye un **Egg oficial de Pterodactyl** preconfigurado y listo 
 2. Selecciona tu categoría (por ejemplo *Minecraft*) y haz clic en el botón **Import Egg**.
 3. Sube el archivo [`egg-universepurpur.json`](egg-universepurpur.json) desde la raíz de este repositorio.
 4. Asigna las variables de entorno deseadas:
+   - `LICENSE_KEY`: Tu clave de activación de SCON Licensing (`SCON-XXXX-XXXX-XXXX-XXXX`).
    - `SERVER_JARFILE`: `universepurpur.jar`
    - `WEB_PORT`: `25566` (Recuerda añadir una asignación o *allocation* adicional a tu servidor en Pterodactyl).
    - `WEB_AUTH_TOKEN`: `admin15k`

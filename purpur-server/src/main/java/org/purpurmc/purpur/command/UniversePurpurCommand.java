@@ -328,7 +328,7 @@ public class UniversePurpurCommand extends Command {
                 .append(Component.text("UniversePurpur Enterprise Edition", NamedTextColor.WHITE, TextDecoration.BOLD)));
 
         sender.sendMessage(Component.text(" • Versión del Núcleo: ", NamedTextColor.GRAY)
-                .append(Component.text("1.0.2-TITAN-RELEASE", NamedTextColor.GREEN))
+                .append(Component.text("1.0.3-TITAN-RELEASE", NamedTextColor.GREEN))
                 .append(Component.text(" (MC: " + Bukkit.getMinecraftVersion() + " | Build: " + Bukkit.getVersion() + ")", NamedTextColor.DARK_GRAY)));
 
         sender.sendMessage(Component.text(" • Autor & Desarrollador: ", NamedTextColor.GRAY)

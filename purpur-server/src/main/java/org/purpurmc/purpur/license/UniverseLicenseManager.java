@@ -206,7 +206,7 @@ public final class UniverseLicenseManager {
         payload.addProperty("product_name", UniversePurpurConfig.licenseProductName != null ? UniversePurpurConfig.licenseProductName : "UniversePurpur");
         payload.addProperty("project_slug", "upurpur");
         payload.addProperty("server_port", serverPort);
-        payload.addProperty("plugin_version", "1.0.2");
+        payload.addProperty("plugin_version", "1.0.3");
         payload.addProperty("server_version", "1.21.4");
 
         byte[] postBytes = payload.toString().getBytes(StandardCharsets.UTF_8);
@@ -216,7 +216,7 @@ public final class UniverseLicenseManager {
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json");
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "SCON-UniversePurpur/1.0.2");
+        conn.setRequestProperty("User-Agent", "SCON-UniversePurpur/1.0.3");
         conn.setConnectTimeout(8000);
         conn.setReadTimeout(10000);
         conn.setDoOutput(true);

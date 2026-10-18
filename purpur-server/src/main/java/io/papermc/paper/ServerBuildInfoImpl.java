@@ -64,6 +64,6 @@ public record ServerBuildInfoImpl(
 
     @Override
     public @NotNull String asString(final @NotNull StringRepresentation representation) {
-        return "1.0.2-TITAN (MC: " + this.minecraftVersionId + ")";
+        return "1.0.3-TITAN (MC: " + this.minecraftVersionId + ")";
     }
 }
