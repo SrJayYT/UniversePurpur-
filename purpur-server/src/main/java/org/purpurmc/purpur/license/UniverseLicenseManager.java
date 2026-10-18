@@ -485,9 +485,8 @@ public final class UniverseLicenseManager {
         System.out.println("     \u001B[0;37m- Guarda e inicia nuevamente tu servidor.\u001B[0m");
         System.out.println();
         System.out.println("  \u001B[1;37m2. O en tu archivo de configuracion (universe-purpur.yml):\u001B[0m");
-        System.out.println("     \u001B[0;36mglobal:\u001B[0m");
-        System.out.println("       \u001B[0;36mlicense:\u001B[0m");
-        System.out.println("         \u001B[1;32mkey: \"SCON-XXXX-XXXX-XXXX-XXXX\"\u001B[0m");
+        System.out.println("     \u001B[0;36mlicense:\u001B[0m");
+        System.out.println("       \u001B[1;32mkey: \"SCON-XXXX-XXXX-XXXX-XXXX\"\u001B[0m");
         System.out.println();
         System.out.println("  \u001B[1;37m3. O como Variable de Entorno en Linux / Docker:\u001B[0m");
         System.out.println("     \u001B[1;33mexport LICENSE_KEY=\"SCON-XXXX-XXXX-XXXX-XXXX\"\u001B[0m");

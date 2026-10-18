@@ -135,12 +135,7 @@ global:
   # Configurable mediante Variable de Entorno (LICENSE_KEY en Startup de Pterodactyl) o en este archivo.
   # ---------------------------------------------------------------------------
   license:
-    enabled: true                      # Requiere licencia válida para iniciar el servidor
     key: "SCON-XXXX-XXXX-XXXX-XXXX"    # Tu clave de licencia SCON (Obtenla en https://licences.scon.host)
-    product-name: "UniversePurpur"     # Nombre del producto en SCON Licensing
-    server-url: "https://licences.scon.host/api/v1/license/verify"
-    shutdown-on-failure: true          # Detiene el servidor si la licencia es inválida o expiró
-    heartbeat-interval-minutes: 5      # Re-verificación periódica en segundo plano (cada 5 minutos)
 
   # ---------------------------------------------------------------------------
   # Built-in Web Admin Panel & Port Infrastructure (2 Default Ports, 3 Geyser)

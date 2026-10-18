@@ -767,12 +767,32 @@ public final class UniversePurpurConfig {
         multiVersionRange = getString("global.multiversion.range", multiVersionRange);
 
         // SCON License Security Engine (https://licences.scon.host)
-        licenseEnabled = getBoolean("global.license.enabled", getBoolean("license.enabled", licenseEnabled));
-        licenseKey = getString("global.license.key", getString("license.key", licenseKey));
-        licenseProductName = getString("global.license.product-name", getString("license.product-name", licenseProductName));
-        licenseServerUrl = getString("global.license.server-url", getString("license.server-url", licenseServerUrl));
-        licenseShutdownOnFailure = getBoolean("global.license.shutdown-on-failure", getBoolean("license.shutdown-on-failure", licenseShutdownOnFailure));
-        licenseHeartbeatMinutes = getInt("global.license.heartbeat-interval-minutes", getInt("license.heartbeat-interval-minutes", licenseHeartbeatMinutes));
+        // Internalize all parameters so only 'key' is exposed in universe-purpur.yml
+        licenseEnabled = true;
+        licenseProductName = "UniversePurpur";
+        licenseServerUrl = "https://licences.scon.host/api/v1/license/verify";
+        licenseShutdownOnFailure = true;
+        licenseHeartbeatMinutes = 5;
+
+        // Clean up legacy internal keys from universe-purpur.yml if present
+        if (config != null) {
+            String[] internalKeys = {
+                "license.enabled", "license.product-name", "license.server-url", "license.shutdown-on-failure", "license.heartbeat-interval-minutes",
+                "global.license.enabled", "global.license.product-name", "global.license.server-url", "global.license.shutdown-on-failure", "global.license.heartbeat-interval-minutes"
+            };
+            for (String ik : internalKeys) {
+                if (config.contains(ik)) {
+                    config.set(ik, null);
+                }
+            }
+        }
+
+        // Support both "license.key" and legacy "global.license.key", standardizing on root "license.key"
+        if (config != null && config.contains("global.license.key") && !config.contains("license.key")) {
+            licenseKey = config.getString("global.license.key", licenseKey);
+            config.set("global.license", null);
+        }
+        licenseKey = getString("license.key", (licenseKey == null || licenseKey.isEmpty()) ? "{{LICENSE_KEY}}" : licenseKey);
 
         // Startup flags & environment variable overrides for License
         String envLicenseKey = System.getenv("LICENSE_KEY");
