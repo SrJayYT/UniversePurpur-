@@ -6,6 +6,10 @@
 
 # UniversePurpur
 
+![Release badge](https://img.shields.io/badge/release-v1.0.4-blue)
+
+**Latest release:** v1.0.4 — includes license key fix and version bump.
+
 ### *The Ultimate Hyper-Scale Minecraft Server Software (+15,000 Concurrent Players)*
 
 [![Release](https://img.shields.io/badge/Release-v1.0.3-brightgreen.svg)](https://github.com/SrJayYT/UniversePurpur-/releases/tag/v1.0.3)
